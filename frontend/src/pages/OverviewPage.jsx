@@ -1,8 +1,6 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ShareTodayModal from '../components/ShareTodayModal';
-import AtmosphericSanctuaryTwin3D from '../components/LazyAtmosphericScene';
-import AtmosphericFallbackSVG from '../components/AtmosphericFallbackSVG';
 import {
   HOUSEHOLD_PERSONAS,
   deriveActionPlan,
@@ -19,7 +17,6 @@ import {
   Wrench,
   Users,
   Shield,
-  Layers,
   Leaf,
   ArrowRight,
   ShieldAlert,
@@ -43,11 +40,7 @@ export default function OverviewPage({
   indoorAqi: propIndoorAqi = null,
   onNavigate,
   selectedPersonaId = 'family',
-  setSelectedPersonaId,
-  fanSpeed,
-  setFanSpeed,
-  isNightMode,
-  setIsNightMode
+  setSelectedPersonaId
 }) {
   let airContext;
   try {
@@ -148,7 +141,7 @@ export default function OverviewPage({
     <div className="space-y-10">
       
       {/* ========================================================================= */}
-      {/* 1. HERO / LANDING SECTION: INTEGRATED 3D ATMOSPHERIC TWIN AT TOP          */}
+      {/* 1. HERO / LANDING SECTION                                               */}
       {/* ========================================================================= */}
       <section className="bg-white rounded-3xl border border-[#E6DED6] p-6 sm:p-8 paper-shadow relative overflow-hidden">
         {/* Subtle background glow */}
@@ -157,7 +150,7 @@ export default function OverviewPage({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch relative z-10">
           
           {/* Left Column: Atmospheric Telemetry & Direct Action */}
-          <div className="lg:col-span-6 flex flex-col justify-between space-y-4">
+          <div className="lg:col-span-12 flex flex-col justify-between space-y-4">
             
             <div className="space-y-3.5">
               {/* Plain Sentence Lead: Required by Prompt 6 before numbers */}
@@ -350,52 +343,6 @@ export default function OverviewPage({
               </div>
             )}
 
-          </div>
-
-          {/* Right Column: 3D Atmospheric Inversion & Sanctuary Twin */}
-          <div className="lg:col-span-6 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between text-xs font-mono-code font-bold text-[#56685F] px-1">
-              <span className="flex items-center gap-1.5 truncate">
-                <span className="w-2 h-2 rounded-full bg-[#3D6B56] shrink-0"></span>
-                <span className="truncate">{isSimpleMode ? 'Air-quality illustration' : '3D air-quality illustration · Drag to orbit'}</span>
-              </span>
-              <button
-                onClick={() => onNavigate('sanctuary')}
-                className="text-[11px] text-[#18261F] hover:underline flex items-center gap-1 font-semibold shrink-0 whitespace-nowrap ml-2"
-              >
-                <span>Full Simulation</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* The Professional Three.js Atmospheric Twin */}
-            <div className="flex-1 w-full rounded-2xl overflow-hidden border border-[#DDD5C7] shadow-inner bg-[#0a0c10] min-h-[380px] lg:min-h-[440px] flex flex-col">
-              {isSimpleMode ? (
-                <AtmosphericFallbackSVG aqi={outdoorAqi} cityData={cityData} purifierOn={fanSpeed !== 'off'} />
-              ) : (
-              <Suspense
-                fallback={
-                  <div role="status" className="w-full h-full min-h-[380px] bg-[#0A0C10] flex flex-col items-center justify-center gap-3 p-6 text-center text-[#F4F2EC]">
-                    <Layers aria-hidden="true" className="w-5 h-5 motion-safe:animate-spin" />
-                    <p className="text-xs font-bold">Loading interactive illustration…</p>
-                  </div>
-                }
-              >
-                <AtmosphericSanctuaryTwin3D
-                  outdoorAqi={outdoorAqi}
-                  fanSpeed={fanSpeed}
-                  setFanSpeed={setFanSpeed}
-                  isNightMode={isNightMode}
-                  setIsNightMode={setIsNightMode}
-                  cityData={cityData}
-                  height="100%"
-                  showHeader={false}
-                  showPanel={false}
-                  isSimpleMode={isSimpleMode}
-                />
-              </Suspense>
-              )}
-            </div>
           </div>
 
         </div>
@@ -760,24 +707,6 @@ export default function OverviewPage({
             </div>
           </button>
 
-          {/* Card 6: 3D Sanctuary Twin */}
-          <button
-            onClick={() => onNavigate('sanctuary')}
-            className="p-6 rounded-3xl bg-white border border-[#E6DED6] paper-shadow text-left hover:border-[#18261F] transition group flex flex-col justify-between h-full space-y-3"
-          >
-            <div className="space-y-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#FAF7F2] text-[#688A72] flex items-center justify-center font-bold">
-                <Layers className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold font-serif-natural text-[#18261F] group-hover:text-[#3D6B56] transition flex items-center justify-between">
-                <span>3D Atmospheric Twin</span>
-                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition -translate-x-2 group-hover:translate-x-0" />
-              </h3>
-              <p className="text-xs text-[#56685F] leading-relaxed">
-                Interactive 3D architectural cutaway featuring particle smoke filtration, laminar flow streams, and day/night toggles.
-              </p>
-            </div>
-          </button>
         </div>
       </section>
 
