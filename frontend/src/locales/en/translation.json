@@ -1,0 +1,126 @@
+{
+  "app": {
+    "title": "Aura",
+    "subtitle": "Urban Air Quality Assistant",
+    "tagline": "Plan for air quality with clear, practical guidance",
+    "educational_notice": "Educational Health Tool • Not a Clinical Diagnosis"
+  },
+  "nav": {
+    "overview": "Overview",
+    "advisor": "AI Advisor",
+    "routines": "Daily Routines",
+    "hacks": "DIY Filter & Hacks",
+    "community": "Community Shield",
+    "impact": "Impact Calculator",
+    "sanctuary": "3D Sanctuary",
+    "profile": "Household Profile",
+    "simple_mode": "Simple Language",
+    "search_placeholder": "Search city or colony...",
+    "use_location": "Use GPS Location",
+    "offline_notice": "Offline — saved data may be out of date",
+    "stale_notice": "Data is {{hours}}h old (cached)",
+    "sample_notice": "Sample Fallback Data",
+    "inversion_alert": "Air-quality update:",
+    "inversion_summary": "Air-quality values for {{city}} are model estimates, not street-level measurements."
+  },
+  "hero": {
+    "status_summary": "The reported air-quality category is {{category}} for {{city}}.",
+    "simple_headline": "Check current air-quality information before planning outdoor activity.",
+    "tech_headline": "Plan for urban air pollution with current data and practical household choices",
+    "simple_desc": "Forecasts can differ from conditions on your street. Reduce indoor particle sources and use suitable filtration where available.",
+    "tech_desc": "Air-quality values for {{city}} are model estimates. Local conditions and weather can vary across a city.",
+    "outdoor_aqi": "Outdoor Air",
+    "indoor_sanctuary": "Your Indoor Air",
+    "simple_indoor": "Indoor Air",
+    "wind_speed": "Wind Speed",
+    "calm_inversion": "Weather data unavailable",
+    "model_estimate": "Model Estimate",
+    "calibrated": "Saved monitor reading",
+    "calibrate_button": "Enter an indoor monitor reading",
+    "cleanest_window": "Lower forecast period",
+    "cleanest_window_simple": "Lower forecast period"
+  },
+  "actions": {
+    "plan_heading": "Immediate 3-Point Action Plan for Today",
+    "plan_subtitle": "Practical suggestions based on your household profile and available air-quality data",
+    "morning_lockdown": "Check local air-quality guidance before outdoor activity",
+    "midday_window": "Consider the lower forecast period ({{window}})",
+    "night_sanctuary": "Reduce indoor particle sources and consider suitable filtration",
+    "customize_button": "Customize Household"
+  },
+  "simple_terms": {
+    "inversion_lid": "A layer of cold air that traps smog near the ground",
+    "convective_window": "A forecast period with comparatively lower pollution",
+    "sanctuary_twin": "Your home",
+    "cadr": "Clean air output speed",
+    "pm25": "Tiny smog particles that enter lungs"
+  },
+  "profile": {
+    "household_guidance": "Tailored Guidance for Your Household",
+    "household_subtitle": "Select a preset or customize your home and family details",
+    "edit_profile": "Edit Full Profile",
+    "adults": "Adults",
+    "children": "Children",
+    "elderly": "Seniors",
+    "commute": "Commute",
+    "vulnerabilities_heading": "Targeted Household Vulnerabilities:"
+  },
+  "mask_guide": {
+    "nav_link": "Respirator Guide",
+    "title": "Respirator guide for particle pollution",
+    "subtitle": "Fit, limits, and local certification matter when choosing a particulate respirator.",
+    "which_mask": "Choosing a respirator",
+    "which_mask_desc": "A properly fitting particulate respirator certified by a recognized authority can reduce exposure to particles. Choose one that fits closely and follow its instructions; masks and respirators differ by model and certification.",
+    "fit_title": "Fit and use",
+    "fit_tips": [
+      "Choose a genuine particulate respirator certified by the authority in your country.",
+      "Follow the manufacturer instructions for putting it on and positioning the nosepiece and straps.",
+      "Check the fit each time using the instructions supplied with the respirator; gaps let unfiltered air in.",
+      "Facial hair or anything else crossing the sealing surface can interfere with the seal."
+    ],
+    "limits_title": "Important limits",
+    "limits_desc": "Particulate respirators filter particles, not gases, and do not supply oxygen. Wearing one can make breathing harder. People with heart or lung conditions should seek advice from a healthcare professional. Reduce outdoor exposure and follow local public-health guidance.",
+    "pediatric_title": "Children and fit",
+    "pediatric_desc": "Fit and suitability depend on the child, product, and local guidance. A poorly fitting or uncomfortable respirator may not be worn correctly. Check current advice for children; do not assume an adult size will fit.",
+    "source_link": "CDC / NIOSH community respirator guidance"
+  },
+  "glossary": {
+    "nav_link": "Smog Glossary",
+    "title": "Air Quality & Inversion Glossary",
+    "subtitle": "Plain explanations of environmental and air purification science",
+    "aqi_title": "AQI (Air Quality Index)",
+    "aqi_desc": "The US AQI is a 0–500 index. Its categories are Good (0–50), Moderate (51–100), Unhealthy for Sensitive Groups (101–150), Unhealthy (151–200), Very Unhealthy (201–300), and Hazardous (301+).",
+    "pm25_title": "PM2.5 (Fine Particulate Matter)",
+    "pm25_desc": "Fine particles with an aerodynamic diameter of 2.5 micrometers or less. They can be inhaled into the respiratory system; health effects depend on exposure and individual factors.",
+    "inversion_title": "Thermal Inversion",
+    "inversion_desc": "A winter weather condition where a layer of warm air sits above cold ground air, trapping smoke, exhaust, and dust like a giant lid.",
+    "convective_mixing_title": "Solar Convective Window",
+    "convective_mixing_desc": "Sunlight can heat the ground and promote vertical mixing, but pollution varies by day and place. An hourly forecast may show relative changes; it cannot identify a guaranteed safe time or a street-level condition.",
+    "cadr_title": "CADR (Clean Air Delivery Rate)",
+    "cadr_desc": "The volume of filtered, clean air an air purifier delivers per hour, measured in cubic meters per hour (m³/h). Higher CADR cleans a room faster.",
+    "corsi_title": "Corsi-Rosenthal Box",
+    "corsi_desc": "A do-it-yourself air cleaner concept using a box fan and particle filters. Performance, safety, sound, and cost depend on the exact fan, filters, build, room, and local prices. Follow current safety guidance."
+  },
+  "footer": {
+    "safety_title": "Educational Health & Community Advisory:",
+    "safety_text": "Aura is designed for exposure avoidance and environmental harm reduction. It is not a clinical diagnostic system. If you or a family member experiences severe breathlessness, chest tightness, or blue lips, seek emergency medical care immediately.",
+    "emergency_call": "For emergencies, contact your local emergency service.",
+    "built_with": "Built for urban clean air equity and scientific transparency."
+  },
+  "ledger": {
+    "title": "Direct Impact Ledger & Choices",
+    "subtitle": "Record completed household actions and review their possible effects and limitations",
+    "today_avoided": "Actions logged today",
+    "week_avoided": "Actions logged this week",
+    "cigarette_title": "Personal exposure estimate",
+    "rough_comparison_note": "No personal exposure estimate is calculated.",
+    "swaps_heading": "Log Today's Choices",
+    "swaps_subtitle": "Record actions completed today. Effects vary by household and are not measured here.",
+    "logged_today": "Logged today",
+    "quick_wins": "Quick Wins",
+    "clear_today": "Clear Today",
+    "greener_swaps_title": "Greener Swaps for Your Household",
+    "greener_swaps_subtitle": "Household choices and their possible effects, with assumptions and limitations",
+    "open_ledger": "Open Choices Ledger"
+  }
+}
