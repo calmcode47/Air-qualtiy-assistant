@@ -96,6 +96,9 @@ export default function Footer({ onNavigate, openMaskGuide, openGlossary }) {
             <div className="pt-1 text-[#8E9F94] text-[11px]">
               {t('footer.built_with', 'Built for urban clean air equity and scientific transparency.')}
             </div>
+            <a href="https://github.com/calmcode47/Air-qualtiy-assistant" className="inline-block text-[#F3C474] underline hover:text-white">
+              Source code and README
+            </a>
           </div>
         </div>
 

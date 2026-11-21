@@ -6,6 +6,10 @@ Aura helps families plan school runs, commutes, and time outdoors during urban s
 
 **Urban air quality assistant.** The primary persona is a caregiver in a city affected by winter smog. The caregiver needs to decide whether to reschedule an outdoor activity, how to make one room easier to keep clean, and what to change on the next commute. The same workflow supports older adults, commuters, apartment residents, and households with limited budgets.
 
+## Try the deployed app
+
+Open [Aura on Vercel](https://aura-air-quality-assistant.vercel.app). Loading the app sends a background health request to wake the Render API while the air-quality interface loads. Public visitors can try location search, routines, and personalized rule-based advice immediately. The hosted Gemini mode requires the advisor access code.
+
 ## Run Aura locally
 
 Use Node.js 24 LTS and npm. The default launch needs no accounts or API keys.
@@ -67,7 +71,7 @@ flowchart LR
 - Open-Meteo and CAMS provide model estimates. Street-level conditions can differ. For time-sensitive plans, check official local alerts and follow any clinician-provided care plan.
 - Selecting browser location rounds coordinates to about one kilometer before requesting Open-Meteo data. Coordinates are excluded from advisor questions. Household settings, saved readings, and the action ledger use browser storage. Chat is kept in memory while the advisor is open.
 - An advisor request includes the selected household fields, recent chat turns, and air context. The Gemini adapter excludes coordinates and masks common email and phone formats. Avoid entering identifying details. The access code authorizes this deployment’s paid advisor and does not create a personal account. Rotating the code invalidates outstanding sessions.
-- The overview defaults to a lightweight illustration. Three.js loads on demand for the interactive scene. Filter effects in the scene are illustrative. Indoor PM2.5 requires a user-entered monitor reading.
+- The separate Sanctuary page contains the air-quality illustration and loads Three.js on demand for the interactive view. Filter effects in the scene are illustrative. Indoor PM2.5 requires a user-entered monitor reading.
 - The ledger counts the actions users record. Effects are qualitative. Hindi and Punjabi navigation are available, and Gemini can answer in the selected language. Offline recommendation details are currently in English.
 
 ## Validation
