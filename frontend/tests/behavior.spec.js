@@ -180,6 +180,24 @@ test.describe('Aura Behavior Verification Suite', () => {
     await expect(page.getByText('Limits and assumptions').first()).toBeVisible();
   });
 
+  test('keeps navigation controls reachable at phone and tablet widths', async ({ page }) => {
+    await page.route('https://air-quality-api.open-meteo.com/**', (route) => route.abort());
+    await page.goto('/');
+    for (const width of [320, 390, 768, 1024]) {
+      await page.setViewportSize({ width, height: 844 });
+      const toggle = page.getByRole('button', { name: 'Toggle Navigation Menu' });
+      await expect(toggle).toBeInViewport();
+      await expect(page.getByRole('combobox', { name: 'Select Language' })).toBeInViewport();
+      await toggle.click();
+      const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+      await expect(navigation).toBeVisible();
+      await expect(navigation.getByRole('button', { name: /advisor/i })).toBeVisible();
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(width + 2);
+    }
+  });
+
   test('uses a searched city’s coordinates and shows the local forecast', async ({ page }) => {
     const current = Date.parse('2026-11-21T18:00:00+05:30') / 1000;
     await page.route('https://api.open-meteo.com/**', (route) => route.fulfill({ json: { current: {} } }));
@@ -271,7 +289,7 @@ test.describe('Aura Behavior Verification Suite', () => {
         // Assert no horizontal layout overflow
         const overflow = await page.evaluate(() => {
           const docWidth = window.innerWidth;
-          const scrollWidth = document.documentElement.scrollWidth;
+          const scrollWidth = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
           return { hasOverflow: scrollWidth > docWidth + 2, scrollWidth, docWidth };
         });
         expect(overflow.hasOverflow, `Horizontal overflow detected on route ${route} in ${lang}: scrollWidth=${overflow.scrollWidth}, docWidth=${overflow.docWidth}`).toBe(false);

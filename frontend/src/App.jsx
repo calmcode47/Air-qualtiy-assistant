@@ -138,7 +138,7 @@ function MainApp() {
             path="/routines"
             element={
               <ErrorBoundary>
-                <RoutinesPage cityData={airData} />
+                <RoutinesPage />
               </ErrorBoundary>
             }
           />

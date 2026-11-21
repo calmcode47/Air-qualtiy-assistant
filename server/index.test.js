@@ -173,9 +173,13 @@ describe('Server Advice & Schema Validation', () => {
       followUp: null
     });
 
+    let configuration;
     const mockAiClient = {
       models: {
-        generateContent: async () => ({ text: validModelJson })
+        generateContent: async ({ config }) => {
+          configuration = config;
+          return { text: validModelJson };
+        }
       }
     };
 
@@ -190,6 +194,10 @@ describe('Server Advice & Schema Validation', () => {
     assert.equal(parsed.success, true);
     assert.equal(result.recommendations[0].id, 'rec-1');
     assert.equal(result.followUp, null);
+    assert.equal(configuration.responseMimeType, 'application/json');
+    const recommendationSchema = configuration.responseJsonSchema.properties.recommendations.items.properties;
+    assert.deepEqual(recommendationSchema.impact.properties.confidence.enum, ['low']);
+    assert.equal(recommendationSchema.id.pattern, undefined);
   });
 
   test('generateAdviceWithValidation retries once on invalid JSON and succeeds if retry is valid', async () => {

@@ -66,7 +66,18 @@ export function constructUserMessage({ message, airData = {}, profile = null, hi
   return `<UNTRUSTED_CONTEXT_JSON>\n${json}\n</UNTRUSTED_CONTEXT_JSON>`;
 }
 
-const { $schema, ...responseJsonSchema } = z.toJSONSchema(AdviceResponseSchema);
+const { $schema, ...responseJsonSchema } = z.toJSONSchema(AdviceResponseSchema, {
+  // Keep provider decoding constraints separate from the stricter local schema.
+  override({ jsonSchema }) {
+    if ('const' in jsonSchema) {
+      jsonSchema.enum = [jsonSchema.const];
+      delete jsonSchema.const;
+    }
+    delete jsonSchema.pattern;
+    delete jsonSchema.minLength;
+    delete jsonSchema.maxLength;
+  }
+});
 const MAX_IN_FLIGHT = 4;
 const PROVIDER_DEADLINE_MS = 12000;
 const BREAKER_COOLDOWN_MS = 60000;

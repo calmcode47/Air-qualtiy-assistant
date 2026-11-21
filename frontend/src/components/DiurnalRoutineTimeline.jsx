@@ -21,7 +21,6 @@ function guidanceFor(aqi, profile = {}) {
     phase: category,
     summary: `Forecast US AQI is ${Math.round(aqi)} (${category}). ${activity}`,
     rules: [
-      activity,
       'A forecast period with a lower AQI is comparative, not a guaranteed safe window or a street-level reading.',
       'For indoor particles, reduce sources and use a correctly sized mechanical filter if available; ventilate when outdoor air is cleaner.'
     ],
@@ -88,7 +87,7 @@ export default function DiurnalRoutineTimeline({ cityData = {} }) {
             </div>
           </div>
 
-          <div className="lg:col-span-8 bg-[#FAF7F2] p-5 rounded-2xl border border-[#DFD6CB] space-y-4">
+          <div className="min-w-0 lg:col-span-8 bg-[#FAF7F2] p-5 rounded-2xl border border-[#DFD6CB] space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-[#1A2922]">Next available forecast hours</span>
@@ -120,7 +119,7 @@ export default function DiurnalRoutineTimeline({ cityData = {} }) {
 
             <div className="rounded-xl bg-white p-4 border border-[#E6DED6] space-y-3">
               <div className="flex items-start gap-3">
-                <span className="w-9 h-9 rounded-full bg-[#1A2922] text-white flex items-center justify-center font-mono font-bold text-[10px] text-center">{currentHourData?.hour || '—'}</span>
+                <span className="w-9 h-9 shrink-0 rounded-full bg-[#1A2922] text-white flex items-center justify-center font-mono font-bold text-[10px] text-center">{currentHourData?.hour || '—'}</span>
                 <div>
                   <h3 className="text-sm font-bold text-[#1A2922]">{guidance.phase}</h3>
                   <p className="text-xs text-[#53645C] mt-1 leading-relaxed">{guidance.summary}</p>

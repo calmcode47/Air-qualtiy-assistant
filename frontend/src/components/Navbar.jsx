@@ -54,6 +54,7 @@ export default function Navbar({
   const [searchError, setSearchError] = useState(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const searchInputRef = useRef(null);
+  const searchButtonRef = useRef(null);
 
   // Read from AirProvider context
   let airContext;
@@ -224,22 +225,19 @@ export default function Navbar({
       )}
 
       {/* Main Navbar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2">
         {/* Brand & Subtitle */}
         <button
           onClick={() => handleNavClick('overview')}
-          className="flex items-center gap-3 text-left group focus:outline-none"
+          className="min-w-0 flex items-center gap-2 text-left group"
         >
-          <div className="w-9 h-9 rounded-2xl bg-[#18261F] text-[#F4F2EC] flex items-center justify-center font-serif text-base font-bold shadow-sm group-hover:scale-105 transition">
+          <div className="w-9 h-9 shrink-0 rounded-2xl bg-[#18261F] text-[#F4F2EC] flex items-center justify-center font-serif text-base font-bold shadow-sm group-hover:scale-105 transition">
             e
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-base font-extrabold font-serif-natural text-[#18261F] tracking-tight">
                 Aura
-              </span>
-              <span className="text-[10px] font-mono-code font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#EAE4D8] text-[#56685F]">
-                Smog Companion
               </span>
             </div>
             <div className="text-[10px] font-mono-code text-[#56685F] leading-none">
@@ -248,30 +246,8 @@ export default function Navbar({
           </div>
         </button>
 
-        {/* Desktop Page Navigation Links */}
-        <nav className="hidden xl:flex items-center gap-1 bg-[#EFECE3] p-1 rounded-2xl border border-[#DFD8CC]">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isItemActive(item);
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-                  isActive
-                    ? 'bg-[#18261F] text-[#F4F2EC] shadow-sm'
-                    : 'text-[#56685F] hover:text-[#18261F] hover:bg-white/60'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#688A72]' : ''}`} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-
         {/* Right: Location Selector, Search, Geolocation & AQI Status Badge */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 flex items-center flex-wrap justify-start gap-1.5 sm:gap-2">
           {/* Geolocation Button */}
           <button
             type="button"
@@ -286,6 +262,7 @@ export default function Navbar({
           {/* Search Trigger Button */}
           <button
             type="button"
+            ref={searchButtonRef}
             onClick={() => setSearchOpen(!searchOpen)}
             aria-expanded={searchOpen}
             className="p-1.5 sm:p-2 rounded-full bg-[#FAF7F2] border border-[#DDD5C7] text-[#56685F] hover:text-[#18261F] hover:bg-[#EFECE3] transition shadow-2xs"
@@ -408,15 +385,42 @@ export default function Navbar({
             </button>
           )}
 
-          {/* Mobile Hamburger Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FAF7F2] border border-[#DDD5C7] flex items-center justify-center text-[#18261F]"
-            aria-label="Toggle Navigation Menu"
-          >
-            {mobileMenuOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5" />}
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="col-start-2 row-start-1 sm:col-start-3 xl:hidden w-9 h-9 rounded-xl bg-[#FAF7F2] border border-[#DDD5C7] flex items-center justify-center text-[#18261F]"
+          aria-label="Toggle Navigation Menu"
+          aria-expanded={mobileMenuOpen}
+          aria-controls={mobileMenuOpen ? 'aura-mobile-menu' : undefined}
+        >
+          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+
+        {/* Desktop Page Navigation Links */}
+        <nav aria-label="Main navigation" className="hidden xl:flex col-span-3 flex-wrap items-center gap-1 bg-[#EFECE3] p-1 rounded-2xl border border-[#DFD8CC]">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = isItemActive(item);
+            return (
+              <button
+                key={item.id}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => handleNavClick(item)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  isActive
+                    ? 'bg-[#18261F] text-[#F4F2EC] shadow-sm'
+                    : 'text-[#56685F] hover:text-[#18261F] hover:bg-white/60'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#688A72]' : ''}`} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
       </div>
 
       {/* Geocoding Search Dropdown Popover */}
@@ -427,16 +431,27 @@ export default function Navbar({
               <Search className="w-4 h-4 text-[#56685F] shrink-0" />
               <input
                 ref={searchInputRef}
-                type="text"
+                type="search"
+                aria-label="Search for a location"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setSearchOpen(false);
+                    searchButtonRef.current?.focus();
+                  }
+                }}
                 placeholder="Search any global city or locality (e.g. Chandigarh, Denver, Karachi)..."
                 className="w-full text-xs text-[#18261F] placeholder:text-[#A6BCB0] bg-transparent focus:outline-none font-medium"
               />
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  aria-label="Clear location search"
                   className="text-[#56685F] hover:text-[#18261F]"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -486,7 +501,7 @@ export default function Navbar({
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-[#E7E0D2] bg-[#FAF8F4] px-4 pt-3 pb-5 space-y-2 animate-in slide-in-from-top-2 duration-200">
+        <nav id="aura-mobile-menu" aria-label="Main navigation" className="xl:hidden max-h-[60dvh] overflow-y-auto border-t border-[#E7E0D2] bg-[#FAF8F4] px-4 pt-3 pb-5 space-y-2 animate-in slide-in-from-top-2 duration-200">
           <div className="grid grid-cols-2 gap-2 pb-3 border-b border-[#E7E0D2]">
             <div className="bg-[#FAF0EC] p-2.5 rounded-xl border border-[#F2D1C5]">
               <span className="text-[10px] font-mono-code uppercase font-bold text-[#56685F] block">{cityData.aqiSystem || 'US AQI'}</span>
@@ -521,6 +536,7 @@ export default function Navbar({
               return (
                 <button
                   key={item.id}
+                  aria-current={isActive ? 'page' : undefined}
                   onClick={() => handleNavClick(item)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
                     isActive
@@ -564,7 +580,7 @@ export default function Navbar({
               )}
             </div>
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );
