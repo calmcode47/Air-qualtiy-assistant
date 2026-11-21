@@ -79,7 +79,7 @@ const { $schema, ...responseJsonSchema } = z.toJSONSchema(AdviceResponseSchema, 
   }
 });
 const MAX_IN_FLIGHT = 4;
-const PROVIDER_DEADLINE_MS = 12000;
+const PROVIDER_DEADLINE_MS = 30000;
 const BREAKER_COOLDOWN_MS = 60000;
 
 function validateAdvice(text) {
@@ -136,8 +136,9 @@ export function createGeminiAdvisor(aiClient, modelName) {
         consecutiveFailures = 0;
         return { advice, mode: 'gemini' };
       }
-    } catch {
+    } catch (error) {
       if (signal?.aborted) return fallback();
+      console.warn('Gemini request failed:', Number.isInteger(error.status) ? `HTTP ${error.status}` : error.name);
     } finally {
       inFlight -= 1;
     }

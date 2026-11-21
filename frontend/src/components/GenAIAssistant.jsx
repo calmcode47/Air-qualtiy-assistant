@@ -183,7 +183,7 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
       const response = await fetch('/api/advice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(35000)]),
         body: JSON.stringify(input)
       });
       if (!response.ok) throw new Error('Advice service unavailable.');
