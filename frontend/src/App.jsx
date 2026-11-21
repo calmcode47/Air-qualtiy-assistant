@@ -228,6 +228,12 @@ function MainApp() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/health', { signal: controller.signal }).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
   return (
     <BrowserRouter>
       <AirProvider>
