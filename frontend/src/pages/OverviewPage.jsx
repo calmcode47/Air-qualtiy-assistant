@@ -375,16 +375,9 @@ export default function OverviewPage({
               ) : (
               <Suspense
                 fallback={
-                  <div className="w-full h-full min-h-[380px] bg-[#0A0C10] flex flex-col items-center justify-center p-6 text-center text-[#A6BCB0] animate-pulse">
-                    <div className="w-10 h-10 rounded-2xl bg-[#1A202C] mb-3 flex items-center justify-center text-[#56685F]">
-                      <Layers className="w-5 h-5 animate-spin" />
-                    </div>
-                    <div className="text-xs font-mono font-bold text-[#E5E7EB]">
-                      Loading 3D illustration...
-                    </div>
-                    <div className="text-[11px] font-mono text-[#56685F] mt-1">
-                      Overview is ready while 3D initializes
-                    </div>
+                  <div role="status" className="w-full h-full min-h-[380px] bg-[#0A0C10] flex flex-col items-center justify-center gap-3 p-6 text-center text-[#F4F2EC]">
+                    <Layers aria-hidden="true" className="w-5 h-5 motion-safe:animate-spin" />
+                    <p className="text-xs font-bold">Loading interactive illustration…</p>
                   </div>
                 }
               >

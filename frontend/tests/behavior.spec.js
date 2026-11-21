@@ -261,6 +261,23 @@ test.describe('Aura Behavior Verification Suite', () => {
     await expect(responseLog.getByText(/start with no-cost source control/)).toHaveCount(0);
   });
 
+  test('keeps the loading state readable while the interactive scene is pending', async ({ page }) => {
+    let releaseScene;
+    const waitForRelease = new Promise((resolve) => { releaseScene = resolve; });
+    await page.route('**/AtmosphericSanctuaryTwin3D.jsx*', async (route) => {
+      await waitForRelease;
+      await route.continue();
+    });
+    try {
+      await page.goto('/home', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByText('Loading interactive illustration…')).toBeVisible();
+      const result = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+      expect(result.violations).toEqual([]);
+    } finally {
+      releaseScene();
+    }
+  });
+
   const languages = ['en', 'hi', 'pa'];
   const routes = ['/', '/advisor', '/routines', '/hacks', '/community', '/impact', '/home'];
 

@@ -55,16 +55,9 @@ export default function SanctuaryPage({
         <div className="rounded-2xl overflow-hidden border border-[#DDD5C7] shadow-inner bg-[#f3f3f1]">
           <Suspense
             fallback={
-              <div className="w-full h-[560px] bg-[#f3f3f1] flex flex-col items-center justify-center p-6 text-center text-[#56685F] animate-pulse">
-                <div className="w-12 h-12 rounded-2xl bg-[#EFECE3] mb-3 flex items-center justify-center text-[#56685F]">
-                  <Layers className="w-6 h-6 animate-spin" />
-                </div>
-                <div className="text-sm font-mono font-bold text-[#18261F]">
-                  Loading 3D Atmospheric Sanctuary Twin...
-                </div>
-                <div className="text-xs font-mono text-[#56685F] mt-1">
-                  Initializing Three.js physics diorama
-                </div>
+              <div role="status" className="w-full h-[560px] bg-[#f3f3f1] flex flex-col items-center justify-center gap-3 p-6 text-center text-[#18261F]">
+                <Layers aria-hidden="true" className="w-6 h-6 motion-safe:animate-spin" />
+                <p className="text-sm font-bold">Loading interactive illustration…</p>
               </div>
             }
           >
