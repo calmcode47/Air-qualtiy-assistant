@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://aura-air-quality-api.onrender.com/api/:path*"
+      "destination": "/api/aura/:path*"
     },
     {
       "source": "/((?!api/).*)",

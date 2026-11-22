@@ -4,16 +4,38 @@ import { ArrowRight, Sun } from 'lucide-react';
 import { useAir } from '../../context/AirContext';
 import { useProfile } from '../../store/profile';
 import { MetricSkeleton } from '../../components/LoadingSkeleton';
+import { getForecastTrend } from '../../services/forecastTrend';
+
+function formatReadingTime(value, timeZone, language) {
+  if (!Number.isFinite(value)) return null;
+  try {
+    return new Intl.DateTimeFormat(language, {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      timeZoneName: 'short', ...(timeZone ? { timeZone } : {})
+    }).format(value);
+  } catch {
+    return new Intl.DateTimeFormat(language, {
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC'
+    }).format(value);
+  }
+}
 
 export default function AirQualitySummary({ onNavigate }) {
   const { airData: cityData, outdoorAqi, isLoading, isStale, staleHours } = useAir();
   const { profile, isSimpleMode, calibrateIndoor, resetCalibration } = useProfile();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const effectiveIndoorPm25 = profile.calibratedIndoorPm25;
   const isCalibrated = effectiveIndoorPm25 !== null;
   const editButton = useRef(null);
   const [calibrationInput, setCalibrationInput] = useState('');
   const [showCalibrationForm, setShowCalibrationForm] = useState(false);
+  const trend = cityData?.isLive ? getForecastTrend(cityData.diurnalHourly) : null;
+  const readingTimestamp = cityData?.isLive
+    ? cityData.observedAt
+    : cityData?.isCached
+      ? cityData.timestamp
+      : null;
+  const readingTime = formatReadingTime(readingTimestamp, cityData?.timezone, i18n.resolvedLanguage || 'en');
 
   function openCalibrationForm() {
     setCalibrationInput(effectiveIndoorPm25 === null ? '' : String(effectiveIndoorPm25));
@@ -45,6 +67,11 @@ export default function AirQualitySummary({ onNavigate }) {
               <span className="w-2 h-2 rounded-full bg-[#A94A28]"></span>
               <span>{cityData.name} • {cityData.aqiSystem || 'US AQI'}: {cityData.category || 'Unavailable'}</span>
             </span>
+            {readingTime && (
+              <span className="text-[10px] font-mono-code font-bold px-2 py-0.5 rounded-full bg-[#EAF2ED] text-[#315E48] border border-[#CCE0D4]">
+                {t(cityData?.isCached ? 'hero.saved_time' : 'hero.reading_time', { time: readingTime })}
+              </span>
+            )}
             {isStale && (
               <span className="text-[10px] font-mono-code font-bold px-2 py-0.5 rounded-full bg-[#FBF5EC] text-[#8C5311] border border-[#F2E0C5]">
                 Data is {staleHours}h old (cached)
@@ -81,6 +108,11 @@ export default function AirQualitySummary({ onNavigate }) {
                 <div className="text-sm sm:text-base font-bold text-[#18261F] font-serif-natural">
                   {cityData.cleanestWindow || 'No lower-pollution period available'}
                 </div>
+                {trend && (
+                  <p className="mt-1 max-w-xl text-[11px] leading-relaxed text-[#53645C]">
+                    {t(`hero.forecast_trend.${trend.direction}`, { hours: trend.hours })}
+                  </p>
+                )}
               </div>
             </div>
 

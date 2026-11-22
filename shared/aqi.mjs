@@ -1,9 +1,13 @@
+// @ts-check
+
+/** @param {unknown} value @returns {number | null} */
 export function normalizeAqi(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
     ? Math.round(value)
     : null;
 }
 
+/** @param {number | null} value @returns {string} */
 export function getUsAqiCategory(value) {
   const aqi = normalizeAqi(value);
   if (aqi === null) return 'Unavailable';
@@ -15,12 +19,14 @@ export function getUsAqiCategory(value) {
   return 'Hazardous';
 }
 
+/** @param {{ children?: unknown, elderly?: unknown, conditions?: unknown }} [profile] */
 export function isSensitiveHousehold(profile = {}) {
   return Number(profile.children || 0) > 0
     || Number(profile.elderly || 0) > 0
     || (Array.isArray(profile.conditions) && profile.conditions.length > 0);
 }
 
+/** @param {number | null} value @param {boolean} sensitive @returns {string} */
 export function outdoorGuidance(value, sensitive) {
   const aqi = normalizeAqi(value);
   if (aqi === null) return 'Check a current local air-quality advisory before planning strenuous outdoor activity.';

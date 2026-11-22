@@ -90,9 +90,7 @@ for (const lang of languages) {
         await page.goto(route);
         const main = page.locator('#main-content');
         await expect(main).toBeVisible();
-
-        const content = await main.innerText();
-        expect(content.trim().length).toBeGreaterThan(20);
+        await expect.poll(async () => (await main.innerText()).trim().length).toBeGreaterThan(20);
 
         // Check horizontal overflow (layout break)
         const overflowInfo = await page.evaluate(() => {
@@ -144,9 +142,7 @@ for (const profile of profiles) {
         await page.goto(route);
         const main = page.locator('#main-content');
         await expect(main).toBeVisible();
-
-        const content = await main.innerText();
-        expect(content.trim().length).toBeGreaterThan(20);
+        await expect.poll(async () => (await main.innerText()).trim().length).toBeGreaterThan(20);
       }
 
       expect(pageErrors, `Page errors for profile ${profile.name}`).toEqual([]);

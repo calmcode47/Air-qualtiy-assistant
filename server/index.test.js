@@ -1,26 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import app, { createApp, parseTrustProxyHops } from './index.js';
+import app, { createApp, parseGeminiDailyLimit, parseTrustProxyHops } from './index.js';
 import { AdviceResponseSchema } from './schema.js';
 import { generateRuleBasedAdvice } from '../shared/advice.mjs';
 import { createGroundStationService } from './groundStations.js';
 
-const stationFixtureNow = Date.now();
-const stationObservedAt = new Date(stationFixtureNow - 60 * 60 * 1000).toISOString();
 const stationFeed = {
-  generated_at: new Date(stationFixtureNow).toISOString(),
+  generated_at: '2026-11-22T09:30:00Z',
   records: [
     {
       city: 'Delhi', station: 'Anand Vihar, Delhi - DPCC', pollutant: 'PM2.5', avg: 42.56,
-      latitude: 28.647622, longitude: 77.315809, updated_at: stationObservedAt
+      latitude: 28.647622, longitude: 77.315809, updated_at: '2026-11-22T08:30:00Z'
     },
     {
       city: 'Delhi', station: 'Anand Vihar, Delhi - DPCC', pollutant: 'PM10', avg: 78,
-      latitude: 28.647622, longitude: 77.315809, updated_at: stationObservedAt
+      latitude: 28.647622, longitude: 77.315809, updated_at: '2026-11-22T08:30:00Z'
     },
     {
       city: 'Delhi', station: 'ITO, Delhi - CPCB', pollutant: 'PM2.5', avg: 100,
-      latitude: 28.628624, longitude: 77.24106, updated_at: stationObservedAt
+      latitude: 28.628624, longitude: 77.24106, updated_at: '2026-11-22T08:30:00Z'
     }
   ]
 };
@@ -49,6 +47,7 @@ test('GET /api/health reports keyless local guidance mode', async (t) => {
   assert.equal(result.status, 'ok');
   assert.equal(result.assistantMode, 'local-guidance');
   assert.equal(result.liveAdvisorEnabled, false);
+  assert.equal(result.provider.status, 'disabled');
 });
 
 test('proxy-hop parsing accepts numeric hop counts and rejects malformed settings', () => {
@@ -56,6 +55,230 @@ test('proxy-hop parsing accepts numeric hop counts and rejects malformed setting
   assert.equal(parseTrustProxyHops('2'), 2);
   assert.throws(() => parseTrustProxyHops('1.5'), /non-negative integer/);
   assert.throws(() => parseTrustProxyHops('-1'), /non-negative integer/);
+});
+
+test('health reports the observed forwarded-IP chain and warns if its length changes', async (t) => {
+  const logLines = [];
+  const baseUrl = await withServer(t, createApp({
+    trustProxy: 4,
+    logger: { info: (line) => logLines.push(line), warn: (line) => logLines.push(line) }
+  }));
+  const first = await fetch(`${baseUrl}/health`, { headers: { 'X-Forwarded-For': '198.51.100.1' } });
+  const firstResult = await first.json();
+  const second = await fetch(`${baseUrl}/health`, { headers: { 'X-Forwarded-For': '198.51.100.2, 203.0.113.2' } });
+  const secondResult = await second.json();
+
+  assert.deepEqual(firstResult.proxyChain, { configuredTrustProxy: 4, observedForwardedForEntries: 1 });
+  assert.deepEqual(secondResult.proxyChain, { configuredTrustProxy: 4, observedForwardedForEntries: 2 });
+  assert.equal(JSON.parse(logLines[0]).event, 'forwarded_ip_chain_observed');
+  assert.equal(JSON.parse(logLines[1]).event, 'forwarded_ip_chain_changed');
+  assert.equal(JSON.parse(logLines[1]).previousForwardedForEntries, 1);
+  assert.equal(JSON.parse(logLines[1]).forwardedForEntries, 2);
+  assert.doesNotMatch(logLines.join('\n'), /198\.51|203\.0/);
+});
+
+test('Gemini daily limit parsing defaults safely and accepts zero or a positive integer', () => {
+  assert.equal(parseGeminiDailyLimit(undefined), 10);
+  assert.equal(parseGeminiDailyLimit('0'), 0);
+  assert.equal(parseGeminiDailyLimit('250'), 250);
+  assert.throws(() => parseGeminiDailyLimit('-1'), /non-negative integer/);
+  assert.throws(() => parseGeminiDailyLimit('1.5'), /non-negative integer/);
+});
+
+test('startup model check reports provider availability through health and logs failures', async (t) => {
+  const logLines = [];
+  const advisor = async () => generateRuleBasedAdvice({ message: 'air quality' });
+  advisor.model = 'gemini-3.8-flash';
+  advisor.checkModel = async () => { throw new Error('{"error":{"code":404,"status":"NOT_FOUND","message":"model name is invalid"}}'); };
+  const appWithModelCheck = createApp({ advisor, logger: {
+    info: (line) => logLines.push(line), warn: (line) => logLines.push(line)
+  } });
+  const baseUrl = await withServer(t, appWithModelCheck);
+  const before = await (await fetch(`${baseUrl}/health`)).json();
+  assert.deepEqual(before.provider, { status: 'checking', model: 'gemini-3.8-flash' });
+
+  await appWithModelCheck.locals.runStartupModelCheck();
+  await appWithModelCheck.locals.runStartupModelCheck();
+  const after = await (await fetch(`${baseUrl}/health`)).json();
+  const event = logLines.map((line) => JSON.parse(line)).find((line) => line.event === 'gemini_startup_check_failed');
+  assert.deepEqual(after.provider, { status: 'unavailable', model: 'gemini-3.8-flash' });
+  assert.equal(event.error.status, 404);
+  assert.match(event.error.message, /model name is invalid/);
+  assert.equal(logLines.map((line) => JSON.parse(line)).filter((line) => line.event === 'gemini_startup_check_failed').length, 1);
+});
+
+test('startup model metadata check is skipped when the Gemini daily limit is zero', async () => {
+  let checkCount = 0;
+  const advisor = async () => generateRuleBasedAdvice({ message: 'air quality' });
+  advisor.model = 'gemini-3.8-flash';
+  advisor.checkModel = async () => { checkCount += 1; };
+  const appWithZeroBudget = createApp({ advisor, geminiDailyLimit: 0, logger: { warn() {} } });
+  await appWithZeroBudget.locals.runStartupModelCheck();
+  assert.equal(checkCount, 0);
+});
+
+test('POST /api/advice uses valid Gemini output and identifies the guidance mode', async (t) => {
+  let receivedInput;
+  const expectedAdvice = generateRuleBasedAdvice({ message: 'How can I reduce indoor particles?' });
+  const appWithAdvisor = createApp({
+    advisor: async (input, { signal }) => {
+      receivedInput = input;
+      assert.ok(signal instanceof AbortSignal);
+      return expectedAdvice;
+    }
+  });
+  const baseUrl = await withServer(t, appWithAdvisor);
+  const response = await fetch(`${baseUrl}/advice`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'How can I reduce indoor particles?', language: 'hi' })
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.mode, 'gemini-guidance');
+  assert.equal(response.headers.get('x-aura-advice-mode'), 'gemini-guidance');
+  assert.deepEqual(receivedInput.message, 'How can I reduce indoor particles?');
+  assert.equal(receivedInput.language, 'hi');
+  assert.equal(AdviceResponseSchema.safeParse(Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'mode'))).success, true);
+});
+
+test('POST /api/advice falls back to local guidance when Gemini fails', async (t) => {
+  const logLines = [];
+  const appWithFailure = createApp({
+    advisor: async () => { throw new Error('provider unavailable'); },
+    logger: { warn: (line) => logLines.push(line) }
+  });
+  const baseUrl = await withServer(t, appWithFailure);
+  const response = await fetch(`${baseUrl}/advice`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'How can I reduce indoor particles?' })
+  });
+  const result = await response.json();
+  const { mode, ...advice } = result;
+
+  assert.equal(response.status, 200);
+  assert.equal(mode, 'local-guidance');
+  assert.equal(response.headers.get('x-aura-advice-mode'), 'local-guidance');
+  assert.equal(AdviceResponseSchema.safeParse(advice).success, true);
+  assert.equal(JSON.parse(logLines[0]).event, 'gemini_advice_failed');
+});
+
+test('POST /api/advice falls back without logging ADVISOR_BUSY as a provider failure', async (t) => {
+  const logLines = [];
+  const appWithBusyAdvisor = createApp({
+    geminiDailyLimit: 1,
+    advisor: (() => {
+      let calls = 0;
+      return async () => {
+        calls += 1;
+        if (calls === 1) {
+          const error = new Error('busy');
+          error.code = 'ADVISOR_BUSY';
+          throw error;
+        }
+        return generateRuleBasedAdvice({ message: 'How can I reduce indoor particles?' });
+      };
+    })(),
+    logger: { warn: (line) => logLines.push(line) }
+  });
+  const baseUrl = await withServer(t, appWithBusyAdvisor);
+  const ask = () => fetch(`${baseUrl}/advice`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'How can I reduce indoor particles?' })
+  });
+  const busyFallback = await ask();
+  const successAfterBusy = await ask();
+  const cappedFallback = await ask();
+
+  assert.equal((await busyFallback.json()).mode, 'local-guidance');
+  assert.equal((await successAfterBusy.json()).mode, 'gemini-guidance');
+  assert.equal((await cappedFallback.json()).mode, 'local-guidance');
+  assert.equal(logLines.length, 0);
+});
+
+test('POST /api/advice rejects invalid Gemini output and falls back to valid local guidance', async (t) => {
+  const appWithInvalidAdvisor = createApp({ advisor: async () => ({ summary: 'invalid', recommendations: [] }) });
+  const baseUrl = await withServer(t, appWithInvalidAdvisor);
+  const response = await fetch(`${baseUrl}/advice`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'How can I reduce indoor particles?' })
+  });
+  const { mode, ...advice } = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(mode, 'local-guidance');
+  assert.equal(AdviceResponseSchema.safeParse(advice).success, true);
+});
+
+test('urgent advice bypasses the Gemini advisor', async (t) => {
+  let advisorCalls = 0;
+  const appWithAdvisor = createApp({ advisor: async () => {
+    advisorCalls += 1;
+    return generateRuleBasedAdvice({ message: 'irrelevant' });
+  } });
+  const baseUrl = await withServer(t, appWithAdvisor);
+  const response = await fetch(`${baseUrl}/advice`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'I cannot breathe', language: 'pa' })
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.mode, 'safety-guidance');
+  assert.match(result.summary, /ਹੁਣੇ/);
+  assert.equal(advisorCalls, 0);
+});
+
+test('Gemini daily cap is global across client IPs and resets at the next UTC date', async (t) => {
+  let currentTime = Date.parse('2026-11-22T23:59:00Z');
+  let advisorCalls = 0;
+  const appWithDailyCap = createApp({
+    trustProxy: 1,
+    geminiDailyLimit: 1,
+    now: () => currentTime,
+    advisor: async () => {
+      advisorCalls += 1;
+      return generateRuleBasedAdvice({ message: 'How can I reduce indoor particles?' });
+    }
+  });
+  const baseUrl = await withServer(t, appWithDailyCap);
+  const ask = (ip) => fetch(`${baseUrl}/advice`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip },
+    body: JSON.stringify({ message: 'How can I reduce indoor particles?' })
+  });
+
+  assert.equal((await (await ask('198.51.100.1')).json()).mode, 'gemini-guidance');
+  assert.equal((await (await ask('198.51.100.2')).json()).mode, 'local-guidance');
+  assert.equal(advisorCalls, 1);
+  currentTime += 60_000;
+  assert.equal((await (await ask('198.51.100.2')).json()).mode, 'gemini-guidance');
+  assert.equal(advisorCalls, 2);
+});
+
+test('Render API rejects direct requests with spoofed forwarded IPs when edge protection is enabled', async (t) => {
+  let advisorCalls = 0;
+  const appBehindTrustedEdge = createApp({
+    trustProxy: 4,
+    edgeToken: 'edge-secret',
+    advisor: async () => {
+      advisorCalls += 1;
+      return generateRuleBasedAdvice({ message: 'How can I reduce indoor particles?' });
+    }
+  });
+  const baseUrl = await withServer(t, appBehindTrustedEdge);
+  const response = await fetch(`${baseUrl}/advice`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': '198.51.100.88, 203.0.113.99'
+    },
+    body: JSON.stringify({ message: 'How can I reduce indoor particles?' })
+  });
+
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /trusted application edge/);
+  assert.equal(advisorCalls, 0);
 });
 
 test('POST /api/advice returns schema-valid personalized local guidance without credentials', async (t) => {
@@ -148,6 +371,7 @@ test('ground-monitor route returns the closest CPCB reading without sending cred
   const requests = [];
   const appWithFeed = createApp({
     origins: [],
+    groundStationNow: () => Date.parse('2026-11-22T09:30:00Z'),
     groundStationFetch: async (url, options) => {
       requests.push({ url: String(url), options });
       return responseFor(stationFeed);

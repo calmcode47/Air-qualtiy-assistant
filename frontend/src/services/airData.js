@@ -187,6 +187,7 @@ export async function fetchAirData(location, signal) {
       descriptor: `${getUsAqiCategory(aqi)} • Open-Meteo model estimate`,
       pm25: concentration(current.pm2_5),
       pm10: concentration(current.pm10),
+      observedAt: Number.isFinite(current.time) ? current.time * 1000 : null,
       tempC,
       humidity,
       windSpeed: windKph === null ? null : `${(windKph / 3.6).toFixed(1)} m/s`,

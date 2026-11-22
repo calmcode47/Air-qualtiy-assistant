@@ -320,9 +320,9 @@ test.describe('Aura Behavior Verification Suite', () => {
         await expect(page.getByRole('combobox', { name: 'Select Language' })).toHaveValue(lang);
         const main = page.locator('#main-content');
         await expect(main).toBeVisible();
+        await expect.poll(async () => (await main.innerText()).trim().length).toBeGreaterThan(30);
 
         const bodyText = await main.innerText();
-        expect(bodyText.length).toBeGreaterThan(30);
 
         // Assert no unrendered i18n key leaks (e.g. "ledger.daily_avoided", "hero.status_summary")
         const keyLeakRegex = /\b(nav|hero|ledger|swaps|advisor|routines|hacks|community|impact|sanctuary|footer|onboarding)\.[a-z0-9_]+/i;

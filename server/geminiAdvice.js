@@ -70,6 +70,7 @@ function redactCommonIdentifiers(value) {
 }
 
 /** Creates a server-only Gemini advisor. The key is never included in prompts or returned values. */
+/** @param {{ apiKey?: string, model?: string, client?: any }} [options] */
 export function createGeminiAdvisor({ apiKey, model = 'gemini-3.8-flash', client } = {}) {
   if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('GEMINI_API_KEY is required to enable Gemini advice.');
   const ai = client || new GoogleGenAI({
@@ -83,10 +84,10 @@ export function createGeminiAdvisor({ apiKey, model = 'gemini-3.8-flash', client
   let consecutiveFailures = 0;
   let pausedUntil = 0;
 
-  return async function generateGeminiAdvice(input, { signal } = {}) {
+  /** @param {any} input @param {{ signal?: AbortSignal }} [options] */
+  const generateGeminiAdvice = async function generateGeminiAdvice(input, { signal } = {}) {
     if (inFlight >= MAX_IN_FLIGHT || Date.now() < pausedUntil) {
-      const error = new Error('Gemini advisor is temporarily unavailable.');
-      error.code = 'ADVISOR_BUSY';
+      const error = Object.assign(new Error('Gemini advisor is temporarily unavailable.'), { code: 'ADVISOR_BUSY' });
       throw error;
     }
     inFlight += 1;
@@ -138,4 +139,11 @@ export function createGeminiAdvisor({ apiKey, model = 'gemini-3.8-flash', client
       inFlight -= 1;
     }
   };
+
+  generateGeminiAdvice.model = model;
+  generateGeminiAdvice.checkModel = async () => ai.models.get({
+    model,
+    config: { abortSignal: AbortSignal.timeout(8000) }
+  });
+  return generateGeminiAdvice;
 }

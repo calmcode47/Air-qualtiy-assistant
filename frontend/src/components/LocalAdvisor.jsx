@@ -8,10 +8,10 @@ import { generateRuleBasedAdvice, isUrgentQuestion } from '../../../shared/advic
 import HowWeWorkedThisOut from './HowWeWorkedThisOut';
 
 const COMMUNITY_PROMPT = 'Suggest practical lower-emission options for commuting and community activities.';
-const MODE_LABELS = {
-  'local-guidance': 'Local rule-based guidance',
-  'safety-guidance': 'Urgent safety guidance',
-  'gemini-guidance': 'Gemini-assisted guidance'
+const MODE_LABEL_KEYS = {
+  'local-guidance': 'advisor.mode_local',
+  'safety-guidance': 'advisor.mode_safety',
+  'gemini-guidance': 'advisor.mode_gemini'
 };
 
 function adviceForDisplay(advice) {
@@ -52,9 +52,9 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
       ? `Cached estimate${cityData.staleHours ? ` · ${cityData.staleHours}h old` : ''}`
       : 'Reading unavailable';
 
-  const renderAdvice = (advice, mode) => {
+  const renderAdvice = (advice, mode, responseLanguage = language) => {
     const safeAdvice = adviceForDisplay(advice);
-    const responseMode = MODE_LABELS[mode] || MODE_LABELS['local-guidance'];
+    const responseMode = i18n.t(MODE_LABEL_KEYS[mode] || MODE_LABEL_KEYS['local-guidance'], { lng: responseLanguage });
     return (
       <div className="space-y-3.5 text-xs">
         <div className="flex flex-wrap items-center gap-2">
@@ -62,8 +62,14 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
             <CheckCircle2 className="w-3 h-3" />
             {responseMode}
           </span>
-          <span className="text-[10px] text-[#56685F]">Advice is educational; impacts are not personal measurements.</span>
+          <span className="text-[10px] text-[#56685F]">{i18n.t('advisor.educational_notice', { lng: responseLanguage })}</span>
         </div>
+
+        {mode === 'local-guidance' && responseLanguage !== 'en' && (
+          <p className="rounded-lg border border-[#DFD6CB] bg-[#FAF7F2] px-3 py-2 text-[11px] text-[#53645C]" role="status">
+            {i18n.t('advisor_notice.local_language', { lng: responseLanguage })}
+          </p>
+        )}
 
         <p className="font-semibold text-sm font-serif-natural text-[#1A2922] leading-relaxed">{safeAdvice.summary}</p>
 
@@ -75,19 +81,19 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
                 <h3 className="font-bold text-xs text-[#1A2922]">{recommendation.title}</h3>
               </div>
               <p className="text-[#1A2922] font-medium leading-relaxed">{recommendation.action}</p>
-              <p className="text-[#53645C] text-[11px] leading-relaxed"><strong className="text-[#1A2922]">Why it may help:</strong> {recommendation.why}</p>
+              <p className="text-[#53645C] text-[11px] leading-relaxed"><strong className="text-[#1A2922]">{i18n.t('advisor.why', { lng: responseLanguage })}</strong> {recommendation.why}</p>
               <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#DFD6CB] text-xs">
-                <strong className="text-[#315E48]">Direct impact:</strong>{' '}
+                <strong className="text-[#315E48]">{i18n.t('advisor.direct_impact', { lng: responseLanguage })}</strong>{' '}
                 <span className="text-[#1A2922]">{recommendation.impact?.value} — {recommendation.impact?.unit}</span>
               </div>
               {recommendation.assumptions?.length > 0 && (
                 <HowWeWorkedThisOut
                   title={recommendation.title}
-                  formula="Qualitative estimate; no personal dose was calculated."
+                  formula={i18n.t('advisor.formula', { lng: responseLanguage })}
                   assumptions={recommendation.assumptions}
                   confidence={recommendation.impact?.confidence || 'low'}
-                  source="General educational guidance; see the linked public-health sources in the project README."
-                  buttonLabel="Limits and assumptions"
+                  source={i18n.t('advisor.source', { lng: responseLanguage })}
+                  buttonLabel={i18n.t('advisor.limits', { lng: responseLanguage })}
                 />
               )}
             </article>
@@ -136,7 +142,7 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
       history: priorHistory
     };
     const addAdvice = (advice, mode) => {
-      setChatHistory((previous) => [...previous, { sender: 'aura', advice, mode }]);
+      setChatHistory((previous) => [...previous, { sender: 'aura', advice, mode, language }]);
     };
 
     try {
@@ -254,7 +260,7 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
             <div key={`${item.sender}-${index}`} className="flex items-start gap-3">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${item.sender === 'aura' ? 'bg-[#1A2922] text-[#FAF7F2]' : 'bg-[#D6B33F] text-[#18261F]'}`} aria-hidden="true">{item.sender === 'aura' ? 'A' : 'You'}</div>
               <div className="min-w-0 break-words flex-1 space-y-1 text-xs leading-relaxed text-[#1A2922]">
-                {item.sender === 'user' ? <p className="font-medium">{item.text}</p> : renderAdvice(item.advice, item.mode)}
+                {item.sender === 'user' ? <p className="font-medium">{item.text}</p> : renderAdvice(item.advice, item.mode, item.language)}
               </div>
             </div>
           ))}

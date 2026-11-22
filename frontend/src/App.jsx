@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -8,20 +8,26 @@ import { AirProvider, useAir } from './context/AirContext';
 import { ProfileProvider } from './store/profile';
 import OnboardingModal from './components/OnboardingModal';
 import MaskGuideModal from './components/MaskGuideModal';
-import GlossaryModal from './components/GlossaryModal';
-import ShareTodayModal from './components/ShareTodayModal';
 import PwaInstallPrompt from './components/PwaInstallPrompt';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useTranslation } from 'react-i18next';
 
-// Full Pages
 import OverviewPage from './pages/OverviewPage';
-import AdvisorPage from './pages/AdvisorPage';
-import RoutinesPage from './pages/RoutinesPage';
-import HacksPage from './pages/HacksPage';
-import CommunityPage from './pages/CommunityPage';
-import ImpactPage from './pages/ImpactPage';
-import SanctuaryPage from './pages/SanctuaryPage';
-import NotFoundPage from './pages/NotFoundPage';
+
+const GlossaryModal = lazy(() => import('./components/GlossaryModal'));
+const ShareTodayModal = lazy(() => import('./components/ShareTodayModal'));
+const AdvisorPage = lazy(() => import('./pages/AdvisorPage'));
+const RoutinesPage = lazy(() => import('./pages/RoutinesPage'));
+const HacksPage = lazy(() => import('./pages/HacksPage'));
+const CommunityPage = lazy(() => import('./pages/CommunityPage'));
+const ImpactPage = lazy(() => import('./pages/ImpactPage'));
+const SanctuaryPage = lazy(() => import('./pages/SanctuaryPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+
+function RouteLoading() {
+  const { t } = useTranslation();
+  return <div role="status" aria-live="polite" className="py-8 text-center text-sm text-[#56685F]">{t('app.loading_page')}</div>;
+}
 
 // Route Title Synchronizer (Prompt 8 Task 1)
 function TitleWatcher() {
@@ -96,84 +102,48 @@ function MainApp() {
 
       {/* 2. Full-Page Content Area with React Router */}
       <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ErrorBoundary>
-                <OverviewPage onNavigate={handleNavigate} />
-              </ErrorBoundary>
-            }
-          />
-          <Route path="/overview" element={<Navigate to="/" replace />} />
-          <Route
-            path="/advisor"
-            element={
-              <ErrorBoundary>
-                <AdvisorPage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/routines"
-            element={
-              <ErrorBoundary>
-                <RoutinesPage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/hacks"
-            element={
-              <ErrorBoundary>
-                <HacksPage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/community"
-            element={
-              <ErrorBoundary>
-                <CommunityPage />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/impact"
-            element={
-              <ErrorBoundary>
-                <ImpactPage
-                  outdoorAqi={outdoorAqi}
-                  fanSpeed={fanSpeed}
-                />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/home"
-            element={
-              <ErrorBoundary>
-                <SanctuaryPage
-                  fanSpeed={fanSpeed}
-                  setFanSpeed={setFanSpeed}
-                  isNightMode={isNightMode}
-                  setIsNightMode={setIsNightMode}
-                  isSoundActive={isSoundActive}
-                  setIsSoundActive={setIsSoundActive}
-                />
-              </ErrorBoundary>
-            }
-          />
-          <Route path="/sanctuary" element={<Navigate to="/home" replace />} />
-          <Route
-            path="*"
-            element={
-              <ErrorBoundary>
-                <NotFoundPage />
-              </ErrorBoundary>
-            }
-          />
-        </Routes>
+        <Suspense fallback={<RouteLoading />}>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <ErrorBoundary>
+                  <OverviewPage onNavigate={handleNavigate} />
+                </ErrorBoundary>
+              }
+            />
+            <Route path="/overview" element={<Navigate to="/" replace />} />
+            <Route path="/advisor" element={<ErrorBoundary><AdvisorPage /></ErrorBoundary>} />
+            <Route path="/routines" element={<ErrorBoundary><RoutinesPage /></ErrorBoundary>} />
+            <Route path="/hacks" element={<ErrorBoundary><HacksPage /></ErrorBoundary>} />
+            <Route path="/community" element={<ErrorBoundary><CommunityPage /></ErrorBoundary>} />
+            <Route
+              path="/impact"
+              element={
+                <ErrorBoundary>
+                  <ImpactPage outdoorAqi={outdoorAqi} fanSpeed={fanSpeed} />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/home"
+              element={
+                <ErrorBoundary>
+                  <SanctuaryPage
+                    fanSpeed={fanSpeed}
+                    setFanSpeed={setFanSpeed}
+                    isNightMode={isNightMode}
+                    setIsNightMode={setIsNightMode}
+                    isSoundActive={isSoundActive}
+                    setIsSoundActive={setIsSoundActive}
+                  />
+                </ErrorBoundary>
+              }
+            />
+            <Route path="/sanctuary" element={<Navigate to="/home" replace />} />
+            <Route path="*" element={<ErrorBoundary><NotFoundPage /></ErrorBoundary>} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* 3. Comprehensive Educational Footer */}
@@ -188,16 +158,21 @@ function MainApp() {
         isOpen={isMaskGuideOpen}
         onClose={() => setIsMaskGuideOpen(false)}
       />
-      <GlossaryModal
-        isOpen={isGlossaryOpen}
-        onClose={() => setIsGlossaryOpen(false)}
-      />
-      <ShareTodayModal
-        isOpen={isShareTodayOpen}
-        onClose={() => setIsShareTodayOpen(false)}
-        cityData={airData}
-        outdoorAqi={outdoorAqi}
-      />
+      {isGlossaryOpen && (
+        <Suspense fallback={null}>
+          <GlossaryModal isOpen onClose={() => setIsGlossaryOpen(false)} />
+        </Suspense>
+      )}
+      {isShareTodayOpen && (
+        <Suspense fallback={null}>
+          <ShareTodayModal
+            isOpen
+            onClose={() => setIsShareTodayOpen(false)}
+            cityData={airData}
+            outdoorAqi={outdoorAqi}
+          />
+        </Suspense>
+      )}
 
       {/* 5. PWA Install Prompt (after 2nd visit) */}
       <PwaInstallPrompt />

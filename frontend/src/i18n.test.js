@@ -29,6 +29,7 @@ describe('i18n internationalization and locale bundle tests', () => {
     expect(i18n.t('hero.outdoor_aqi')).toBe('बाहर की हवा');
     expect(i18n.t('simple_terms.sanctuary_twin')).toBe('आपका घर');
     expect(i18n.t('mask_guide.nav_link')).toContain('रेस्पिरेटर');
+    expect(i18n.t('advisor_notice.local_language')).toContain('स्थानीय नियमों');
   });
 
   it('switches cleanly to Punjabi and resolves localized phrases', async () => {
@@ -38,6 +39,7 @@ describe('i18n internationalization and locale bundle tests', () => {
     expect(i18n.t('hero.outdoor_aqi')).toBe('ਬਾਹਰਲੀ ਹਵਾ');
     expect(i18n.t('simple_terms.sanctuary_twin')).toBe('ਤੁਹਾਡਾ ਘਰ');
     expect(i18n.t('mask_guide.nav_link')).toContain('ਰੈਸਪੀਰੇਟਰ');
+    expect(i18n.t('advisor_notice.local_language')).toContain('ਸਥਾਨਕ ਨਿਯਮਾਂ');
   });
 
   it('keeps all nested locale keys in sync', () => {

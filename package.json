@@ -7,11 +7,12 @@
     "dev:server": "npm --prefix server start",
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
-    "test": "npm --prefix frontend run test && npm --prefix server test",
+    "test": "npm --prefix frontend run test:coverage && npm --prefix server test",
+    "typecheck": "npm --prefix frontend run typecheck",
     "check:contrast": "node scripts/contrast-check.mjs",
     "start": "node server/index.js --production",
     "test:e2e": "npm --prefix frontend run test:smoke",
-    "lint": "oxlint --report-unused-disable-directives frontend/src frontend/tests frontend/*.js server shared scripts"
+    "lint": "oxlint --report-unused-disable-directives api frontend/src frontend/tests frontend/*.js server shared scripts"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

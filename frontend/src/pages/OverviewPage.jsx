@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import ShareTodayModal from '../components/ShareTodayModal';
+import React, { lazy, Suspense, useState } from 'react';
 import GroundStationCard from '../components/GroundStationCard';
 import { useAir } from '../context/AirContext';
 import { deriveActionPlan } from '../data/householdPersonas';
@@ -9,6 +8,8 @@ import AssistantTools from './overview/AssistantTools';
 import GreenerSwaps from './overview/GreenerSwaps';
 import HouseholdGuidance from './overview/HouseholdGuidance';
 import TodayActionPlan from './overview/TodayActionPlan';
+
+const ShareTodayModal = lazy(() => import('../components/ShareTodayModal'));
 
 export default function OverviewPage({ onNavigate }) {
   const { airData, outdoorAqi, groundStation } = useAir();
@@ -28,13 +29,17 @@ export default function OverviewPage({ onNavigate }) {
       <HouseholdGuidance onEditProfile={editProfile} onNavigate={onNavigate} />
       <GreenerSwaps onNavigate={onNavigate} />
       <AssistantTools />
-      <ShareTodayModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        cityData={airData}
-        outdoorAqi={outdoorAqi}
-        actionPlan={actionPlan}
-      />
+      {showShareModal && (
+        <Suspense fallback={null}>
+          <ShareTodayModal
+            isOpen
+            onClose={() => setShowShareModal(false)}
+            cityData={airData}
+            outdoorAqi={outdoorAqi}
+            actionPlan={actionPlan}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

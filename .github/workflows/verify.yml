@@ -34,7 +34,9 @@ jobs:
           npm --prefix frontend audit --audit-level=moderate
           npm --prefix server audit --audit-level=moderate
       - run: npm run lint
-      - run: npm test
+      - run: npm run typecheck
+      - name: Run unit tests and enforce coverage thresholds
+        run: npm test
       - run: npm run check:contrast
       - run: npm run build
       - run: npm --prefix frontend exec -- playwright install --with-deps chromium

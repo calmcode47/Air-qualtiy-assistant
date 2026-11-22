@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 
 const sceneEntry = 'AtmosphericSanctuaryTwin3D';
 const sceneShaders = 'three-shaders';
@@ -90,7 +94,24 @@ export default defineConfig({
     }
   },
   test: {
-    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}']
+    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    coverage: {
+      provider: 'v8',
+      allowExternal: true,
+      include: [
+        resolve(projectRoot, 'shared/advice.mjs'),
+        resolve(projectRoot, 'shared/adviceTemplates.mjs'),
+        resolve(projectRoot, 'shared/aqi.mjs'),
+        resolve(projectRoot, 'shared/groundMonitor.mjs'),
+        resolve(projectRoot, 'server/groundStations.js')
+      ],
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 55,
+        statements: 70
+      }
+    }
   },
   server: {
     port: 3000,

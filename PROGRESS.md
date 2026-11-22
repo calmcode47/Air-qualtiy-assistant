@@ -32,14 +32,14 @@ Install from the lockfiles with `npm ci`, `npm --prefix frontend ci`, and `npm -
 
 - Live air-quality values come from Open-Meteo/CAMS and are model estimates, not street-level monitor readings.
 - No fabricated city values are used when data is unavailable. Cached readings are aged and cached forecasts are hidden.
-- `shared/advice.mjs` provides deterministic, schema-validated advice returned as JSON. Urgent safety summaries support English, Hindi, and Punjabi. Detailed recommendations are currently in English.
+- `shared/advice.mjs` provides deterministic, schema-validated advice returned as JSON. Urgent safety summaries and rule-based recommendations support English, Hindi, and Punjabi. Hindi and Punjabi advice copy has not had native-speaker review.
 - Nearby CPCB station readings are sourced from a third-party no-key mirror for India and are shown separately from model estimates. Snapdata does not document the averaging period for its reported `avg` values. Null and over-six-hour values are excluded.
 - The 3D scene is a schematic illustration. It does not estimate mixing height, indoor particle levels, or cleaner performance.
 - User-entered indoor PM2.5 readings, profile values, selected location, and action history are saved in local browser storage.
 
 ## Verification and limits
 
-- The suite covers forecast changes, cache fallback, household edits, share files, keyboard focus, language selection, API limits, and the advice fallback. See [README.md](README.md) for the commands.
+- The suite covers forecast changes, cache fallback, household edits, share files, keyboard focus, language selection, API limits, multilingual urgent phrases, direct shared-advice and station-service rules, and the advice fallback. Vitest coverage thresholds run in CI. See [README.md](README.md) for the commands.
 - Direct route loading and offline reload were checked against the local production build. The current local advisor does not call a hosted language model.
 - Browser runs use Chromium at two viewport widths. Physical-device audio, native share sheets, screen-reader behavior, and native-speaker review of the new Hindi and Punjabi text remain unverified.
 - The Three.js scene is split into smaller chunks. The app shell excludes them from PWA precaching and the service worker caches them after a Sanctuary visit.
@@ -64,4 +64,8 @@ Install from the lockfiles with `npm ci`, `npm --prefix frontend ci`, and `npm -
 - Added request-correlated server error logs and removed synthetic chunking of completed local advice.
 - Kept the advisor keyless and local; added a public CPCB station-feed integration for nearby raw observations.
 - Added focused component and service tests for translations, station readings, and streamed responses.
-- Render proxy-hop configuration accepts a numeric count. A one-time health probe can log the forwarded-IP chain for verification from the deployed Vercel route.
+- Expanded urgent symptom matching and topic keywords across English, Hindi, and Punjabi; moved rule-based recommendation copy into language-specific templates.
+- Added direct unit coverage for shared advice, CPCB station selection, and forecast trend summaries, with a coverage threshold in CI; added a JSDoc typecheck for `shared/` and `server/`.
+- Lazy-loaded route pages and share/glossary dialogs, split scene construction and Navbar search into smaller modules, and added a forecast trend prompt and provider reading timestamp.
+- Added a copyable plain-text share summary and moved the Vercel proxy handler outside `api/`.
+- Health checks now log the observed forwarded-IP chain length and warn when it changes during the process. Optional Gemini mode checks model metadata once at startup and exposes readiness through `/api/health`.

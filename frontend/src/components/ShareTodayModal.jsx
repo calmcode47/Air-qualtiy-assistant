@@ -60,11 +60,13 @@ export default function ShareTodayModal({
   const title = `Aura air-quality update for ${cityName}`;
   const filename = `aura-air-status-${cityName.toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, '-')}.png`;
   const summary = [
-    `${title}. ${aqiSystem} ${outdoorAqi ?? 'unavailable'} (${category}).`,
-    readingNote,
-    `Lower forecast period: ${lowerWindow}.`,
-    ...actions.map((action, index) => `${index + 1}. ${action}`),
-    'Educational information from Aura. Check current local guidance for time-sensitive decisions.'
+    `🌫️ Aura air update — ${cityName}`,
+    `${aqiSystem}: ${outdoorAqi ?? 'unavailable'} (${category})`,
+    `Data: ${readingNote}`,
+    `Lower forecast period: ${lowerWindow}`,
+    'Practical steps:',
+    ...actions.map((action) => `• ${action}`),
+    'Educational information. Check current local guidance for time-sensitive decisions.'
   ].join('\n');
 
   function close() {

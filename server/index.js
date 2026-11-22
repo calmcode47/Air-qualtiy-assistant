@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AdviceRequestSchema, AdviceResponseSchema } from './schema.js';
@@ -16,6 +16,50 @@ const projectRoot = path.resolve(path.dirname(entry), '..');
 const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_TRACKED_CLIENTS = 10000;
+export const DEFAULT_GEMINI_DAILY_LIMIT = 10;
+
+export function parseGeminiDailyLimit(value) {
+  if (value === undefined || value.trim() === '') return DEFAULT_GEMINI_DAILY_LIMIT;
+  const limit = Number(value);
+  if (!Number.isSafeInteger(limit) || limit < 0) {
+    throw new Error('AURA_GEMINI_DAILY_LIMIT must be a non-negative integer.');
+  }
+  return limit;
+}
+
+function hasValidEdgeToken(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+  const providedBytes = Buffer.from(provided);
+  const expectedBytes = Buffer.from(expected);
+  return providedBytes.length === expectedBytes.length && timingSafeEqual(providedBytes, expectedBytes);
+}
+
+function createDailyGeminiBudget(limit, now) {
+  let day = '';
+  let used = 0;
+
+  return {
+    reserve() {
+      const currentDay = new Date(now()).toISOString().slice(0, 10);
+      if (currentDay !== day) {
+        day = currentDay;
+        used = 0;
+      }
+      if (used >= limit) return null;
+
+      used += 1;
+      const reservedDay = day;
+      let released = false;
+      return {
+        release() {
+          if (released) return;
+          if (day === reservedDay) used -= 1;
+          released = true;
+        }
+      };
+    }
+  };
+}
 
 export function parseTrustProxyHops(value) {
   if (value === undefined || value.trim() === '') return false;
@@ -87,7 +131,9 @@ function sanitizedProviderError(error) {
     : undefined;
   return {
     name: typeof error?.name === 'string' ? error.name.slice(0, 100) : 'Error',
-    status: Number.isInteger(error?.status) ? error.status : undefined,
+    status: Number.isInteger(error?.status)
+      ? error.status
+      : Number.isInteger(providerError?.code) ? providerError.code : undefined,
     code: typeof providerError?.status === 'string'
       ? providerError.status.slice(0, 100)
       : typeof error?.code === 'string' ? error.code.slice(0, 100) : undefined,
@@ -95,19 +141,84 @@ function sanitizedProviderError(error) {
   };
 }
 
+/**
+ * @typedef {((input: any, options?: { signal?: AbortSignal }) => Promise<any>) & {
+ *   model?: string, checkModel?: () => Promise<unknown>
+ * }} Advisor
+ * @typedef {object} CreateAppOptions
+ * @property {boolean} [production]
+ * @property {string[]} [origins]
+ * @property {number | boolean} [trustProxy]
+ * @property {Console | { info?: (line: string) => void, warn?: (line: string) => void, error?: (line: string) => void }} [logger]
+ * @property {typeof fetch} [groundStationFetch]
+ * @property {() => number} [groundStationNow]
+ * @property {Advisor | null} [advisor]
+ * @property {number} [geminiDailyLimit]
+ * @property {string} [edgeToken]
+ * @property {() => number} [now]
+ */
+/** @param {CreateAppOptions} [options] */
 export function createApp({
   production = false,
   origins = production ? [] : DEFAULT_ORIGINS,
   trustProxy = false,
   logger = console,
   groundStationFetch = fetch,
-  advisor = null
+  groundStationNow = Date.now,
+  advisor = null,
+  geminiDailyLimit = DEFAULT_GEMINI_DAILY_LIMIT,
+  edgeToken,
+  now = Date.now
 } = {}) {
   const app = express();
+  if (!Number.isSafeInteger(geminiDailyLimit) || geminiDailyLimit < 0) {
+    throw new Error('geminiDailyLimit must be a non-negative integer.');
+  }
   const allowedOrigins = new Set(origins);
   const json = express.json({ limit: '20kb', strict: true });
-  const groundStations = createGroundStationService({ fetchImpl: groundStationFetch });
+  const groundStations = createGroundStationService({ fetchImpl: groundStationFetch, now: groundStationNow });
   const liveAdvisorEnabled = typeof advisor === 'function';
+  const geminiBudget = createDailyGeminiBudget(geminiDailyLimit, now);
+  const providerHealth = {
+    status: liveAdvisorEnabled ? 'checking' : 'disabled',
+    model: liveAdvisorEnabled && typeof advisor.model === 'string' ? advisor.model : null
+  };
+  let providerCheckStarted = false;
+  let observedForwardedForEntries = null;
+
+  app.locals.runStartupModelCheck = async () => {
+    if (!liveAdvisorEnabled || typeof advisor.checkModel !== 'function' || providerCheckStarted) return;
+    providerCheckStarted = true;
+    const reservation = geminiBudget.reserve();
+    if (!reservation) {
+      providerHealth.status = 'skipped_daily_limit';
+      structuredLog(logger, 'warn', {
+        timestamp: new Date().toISOString(),
+        event: 'gemini_startup_check_skipped',
+        model: providerHealth.model,
+        reason: 'daily_limit_reached'
+      });
+      return;
+    }
+
+    try {
+      await advisor.checkModel();
+      providerHealth.status = 'ready';
+      structuredLog(logger, 'info', {
+        timestamp: new Date().toISOString(),
+        event: 'gemini_startup_check_succeeded',
+        model: providerHealth.model
+      });
+    } catch (error) {
+      providerHealth.status = 'unavailable';
+      structuredLog(logger, 'warn', {
+        timestamp: new Date().toISOString(),
+        event: 'gemini_startup_check_failed',
+        model: providerHealth.model,
+        error: sanitizedProviderError(error)
+      });
+    }
+  };
 
   app.disable('x-powered-by');
   app.set('trust proxy', trustProxy);
@@ -127,6 +238,9 @@ export function createApp({
   });
   app.use('/api', (req, res, next) => {
     res.set('Cache-Control', 'no-store');
+    if (edgeToken && !hasValidEdgeToken(req.get('x-aura-edge-token'), edgeToken)) {
+      return res.status(403).json({ error: 'Request must come through the trusted application edge.' });
+    }
     if (!allowedOrigin(req, req.get('origin'), allowedOrigins)) {
       return res.status(403).json({ error: 'Origin is not allowed.' });
     }
@@ -134,10 +248,34 @@ export function createApp({
   });
 
   app.get('/api/health', (req, res) => {
+    const forwardedForEntries = (req.get('x-forwarded-for') || '').split(',').map((entry) => entry.trim()).filter(Boolean).length;
+    if (observedForwardedForEntries === null) {
+      observedForwardedForEntries = forwardedForEntries;
+      structuredLog(logger, 'info', {
+        timestamp: new Date().toISOString(),
+        event: 'forwarded_ip_chain_observed',
+        forwardedForEntries,
+        configuredTrustProxy: trustProxy
+      });
+    } else if (forwardedForEntries !== observedForwardedForEntries) {
+      structuredLog(logger, 'warn', {
+        timestamp: new Date().toISOString(),
+        event: 'forwarded_ip_chain_changed',
+        previousForwardedForEntries: observedForwardedForEntries,
+        forwardedForEntries,
+        configuredTrustProxy: trustProxy
+      });
+      observedForwardedForEntries = forwardedForEntries;
+    }
     res.json({
       status: 'ok',
       assistantMode: liveAdvisorEnabled ? 'gemini-guidance' : 'local-guidance',
-      liveAdvisorEnabled
+      liveAdvisorEnabled,
+      provider: { ...providerHealth },
+      proxyChain: {
+        configuredTrustProxy: trustProxy,
+        observedForwardedForEntries
+      }
     });
   });
   app.get('/api/monitor', rateLimiter(20), async (req, res) => {
@@ -183,27 +321,35 @@ export function createApp({
       advice = generateRuleBasedAdvice(input);
       mode = 'safety-guidance';
     } else if (liveAdvisorEnabled) {
-      const providerRequest = new AbortController();
-      res.once('close', () => {
-        if (!res.writableEnded) providerRequest.abort();
-      });
-      try {
-        advice = AdviceResponseSchema.parse(await advisor(input, { signal: providerRequest.signal }));
-        mode = 'gemini-guidance';
-      } catch (error) {
-        if (res.destroyed) return;
-        if (error?.code !== 'ADVISOR_BUSY') {
-          structuredLog(logger, 'warn', {
-            timestamp: new Date().toISOString(),
-            event: 'gemini_advice_failed',
-            requestId: req.requestId,
-            method: req.method,
-            path: req.path,
-            error: sanitizedProviderError(error)
-          });
-        }
+      const reservation = geminiBudget.reserve();
+      if (!reservation) {
         advice = generateRuleBasedAdvice(input);
         mode = 'local-guidance';
+      } else {
+        const providerRequest = new AbortController();
+        res.once('close', () => {
+          if (!res.writableEnded) providerRequest.abort();
+        });
+        try {
+          advice = AdviceResponseSchema.parse(await advisor(input, { signal: providerRequest.signal }));
+          mode = 'gemini-guidance';
+        } catch (error) {
+          if (res.destroyed) return;
+          if (error?.code === 'ADVISOR_BUSY') {
+            reservation.release();
+          } else {
+            structuredLog(logger, 'warn', {
+              timestamp: new Date().toISOString(),
+              event: 'gemini_advice_failed',
+              requestId: req.requestId,
+              method: req.method,
+              path: req.path,
+              error: sanitizedProviderError(error)
+            });
+          }
+          advice = generateRuleBasedAdvice(input);
+          mode = 'local-guidance';
+        }
       }
     } else {
       advice = generateRuleBasedAdvice(input);
@@ -281,9 +427,10 @@ export function createApp({
 const isMain = process.argv[1] && entry === path.resolve(process.argv[1]);
 if (isMain) {
   dotenv.config({ path: path.join(projectRoot, '.env') });
-  const { CORS_ORIGIN, AURA_TRUST_PROXY } = process.env;
+  const { CORS_ORIGIN, AURA_TRUST_PROXY, AURA_EDGE_TOKEN } = process.env;
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const model = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+  const geminiDailyLimit = parseGeminiDailyLimit(process.env.AURA_GEMINI_DAILY_LIMIT);
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(model)) throw new Error('GEMINI_MODEL contains unsupported characters.');
   const port = Number(process.env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer between 1 and 65535.');
@@ -291,9 +438,14 @@ if (isMain) {
     production: process.env.NODE_ENV === 'production' || process.argv.includes('--production'),
     origins: CORS_ORIGIN?.split(',').map((value) => value.trim()).filter(Boolean),
     trustProxy: parseTrustProxyHops(AURA_TRUST_PROXY),
-    advisor: apiKey ? createGeminiAdvisor({ apiKey, model }) : null
+    advisor: apiKey ? createGeminiAdvisor({ apiKey, model }) : null,
+    geminiDailyLimit,
+    edgeToken: AURA_EDGE_TOKEN?.trim() || undefined
   });
-  app.listen(port, () => console.log(`Aura listening on port ${port}. ${apiKey ? `Gemini advisor enabled (${model}).` : 'Advice runs locally without provider credentials.'}`));
+  app.listen(port, () => {
+    console.log(`Aura listening on port ${port}. ${apiKey ? `Gemini advisor enabled (${model}).` : 'Advice runs locally without provider credentials.'}`);
+    void app.locals.runStartupModelCheck();
+  });
 }
 
 export default createApp();

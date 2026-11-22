@@ -1,9 +1,12 @@
+// @ts-check
+
 const FEED_URL = 'https://snapdata.dev/api/v1/aqi/in/latest.json';
 const SEARCH_RADIUS_KM = 25;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_READING_AGE_MS = 6 * 60 * 60 * 1000;
 const MAX_FEED_BYTES = 4 * 1024 * 1024;
 
+/** @param {number} latitudeA @param {number} longitudeA @param {number} latitudeB @param {number} longitudeB */
 function distanceKm(latitudeA, longitudeA, latitudeB, longitudeB) {
   const radians = (degrees) => degrees * Math.PI / 180;
   const latitudeDelta = radians(latitudeB - latitudeA);
@@ -14,6 +17,7 @@ function distanceKm(latitudeA, longitudeA, latitudeB, longitudeB) {
   return 6371 * 2 * Math.atan2(Math.sqrt(arc), Math.sqrt(1 - arc));
 }
 
+/** @param {any} data */
 function normalizeFeed(data) {
   if (!Array.isArray(data?.records) || data.records.length > 100000) {
     throw new Error('CPCB station feed returned an invalid dataset.');
@@ -21,13 +25,16 @@ function normalizeFeed(data) {
   return data.records;
 }
 
+/** @param {number} latitude @param {number} longitude */
 function isIndiaLocation(latitude, longitude) {
   return latitude >= 6 && latitude <= 38 && longitude >= 67 && longitude <= 99;
 }
 
+/** @param {{ fetchImpl?: typeof fetch, now?: () => number }} [options] */
 export function createGroundStationService({ fetchImpl = fetch, now = Date.now } = {}) {
   let cachedFeed = null;
 
+  /** @param {AbortSignal | undefined} signal */
   async function getFeed(signal) {
     if (cachedFeed && cachedFeed.expiresAt > now()) return cachedFeed;
 
@@ -39,8 +46,7 @@ export function createGroundStationService({ fetchImpl = fetch, now = Date.now }
         signal: requestSignal
       });
       if (!response.ok) {
-        const error = new Error(`CPCB station feed returned HTTP ${response.status}.`);
-        error.status = response.status;
+        const error = Object.assign(new Error(`CPCB station feed returned HTTP ${response.status}.`), { status: response.status });
         throw error;
       }
       const text = await response.text();
@@ -58,6 +64,7 @@ export function createGroundStationService({ fetchImpl = fetch, now = Date.now }
     }
   }
 
+  /** @param {number} latitude @param {number} longitude @param {AbortSignal} [signal] */
   async function getNearestStation(latitude, longitude, signal) {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)
       || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {

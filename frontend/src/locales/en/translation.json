@@ -2,6 +2,7 @@
   "app": {
     "title": "Aura",
     "subtitle": "Urban Air Quality Assistant",
+    "loading_page": "Loading page…",
     "tagline": "Plan for air quality with clear, practical guidance",
     "educational_notice": "Educational Health Tool • Not a Clinical Diagnosis"
   },
@@ -22,6 +23,20 @@
     "sample_notice": "Sample Fallback Data",
     "inversion_alert": "Air-quality update:",
     "inversion_summary": "Air-quality values for {{city}} are model estimates, not street-level measurements."
+  },
+  "advisor_notice": {
+    "local_language": "This guidance is generated from local rules and is for education. Follow current local public-health advice."
+  },
+  "advisor": {
+    "educational_notice": "Advice is educational; impacts are not personal measurements.",
+    "why": "Why it may help:",
+    "direct_impact": "Direct impact:",
+    "limits": "Limits and assumptions",
+    "formula": "Qualitative guidance; no personal dose was calculated.",
+    "source": "General educational guidance; see the linked public-health sources in the project README.",
+    "mode_local": "Local rule-based guidance",
+    "mode_safety": "Urgent safety guidance",
+    "mode_gemini": "Gemini-assisted guidance"
   },
   "advisory_banner": {
     "offline_saved": "Offline — showing saved data",
@@ -63,10 +78,17 @@
     "wind_speed": "Wind Speed",
     "calm_inversion": "Weather data unavailable",
     "model_estimate": "Model Estimate",
+    "reading_time": "Reading time: {{time}}",
+    "saved_time": "Saved reading: {{time}}",
     "calibrated": "Saved monitor reading",
     "calibrate_button": "Enter an indoor monitor reading",
     "cleanest_window": "Lower forecast period",
-    "cleanest_window_simple": "Lower forecast period"
+    "cleanest_window_simple": "Lower forecast period",
+    "forecast_trend": {
+      "lower": "Forecast values trend lower over the next {{hours}} hours. Check again before outdoor plans; estimates are not street-level measurements.",
+      "higher": "Forecast values trend higher over the next {{hours}} hours. Check again before outdoor plans; estimates are not street-level measurements.",
+      "similar": "Forecast values stay similar over the next {{hours}} hours. Check again before outdoor plans; estimates are not street-level measurements."
+    }
   },
   "actions": {
     "plan_heading": "Immediate 3-Point Action Plan for Today",

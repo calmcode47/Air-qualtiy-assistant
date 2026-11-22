@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,6 +22,7 @@ import {
 import AdvisoryBanner from './AdvisoryBanner';
 import { useAir } from '../context/AirContext';
 import { useProfile } from '../store/profile';
+import useNavbarLocationSearch from './useNavbarLocationSearch';
 
 export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) {
   const { t, i18n } = useTranslation();
@@ -34,13 +35,18 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
   const { isSimpleMode, toggleSimpleMode, updateProfile, setIsOnboardingOpen } = useProfile();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState(false);
-  const searchInputRef = useRef(null);
-  const searchButtonRef = useRef(null);
+  const {
+    searchOpen,
+    setSearchOpen,
+    searchQuery,
+    searchResults,
+    isSearching,
+    searchError,
+    searchInputRef,
+    searchButtonRef,
+    updateSearchQuery,
+    handleSelectLocation
+  } = useNavbarLocationSearch({ searchLocations, selectLocation });
 
   const currentLang = i18n.resolvedLanguage || 'en';
 
@@ -67,49 +73,6 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
   function isItemActive(item) {
     return pathname === item.path;
   }
-
-  useEffect(() => {
-    if (searchOpen) searchInputRef.current?.focus();
-  }, [searchOpen]);
-
-  function updateSearchQuery(query) {
-    setSearchQuery(query);
-    setSearchResults([]);
-    setSearchError(false);
-    setIsSearching(query.trim().length >= 2);
-  }
-
-  useEffect(() => {
-    if (!searchOpen || searchQuery.trim().length < 2) return;
-
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(6000)]);
-        const results = await searchLocations(searchQuery, signal);
-        if (!controller.signal.aborted) {
-          setSearchResults(results);
-          setSearchError(signal.aborted);
-        }
-      } catch {
-        if (!controller.signal.aborted) setSearchError(true);
-      } finally {
-        if (!controller.signal.aborted) setIsSearching(false);
-      }
-    }, 350);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [searchQuery, searchOpen, searchLocations]);
-
-  const handleSelectLocation = (location) => {
-    selectLocation(location);
-    searchButtonRef.current?.focus();
-    setSearchOpen(false);
-    updateSearchQuery('');
-  };
 
   return (
     <header className="sticky top-0 z-50 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-[#E7E0D2] shadow-xs">
