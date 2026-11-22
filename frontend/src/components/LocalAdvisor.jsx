@@ -10,7 +10,8 @@ import HowWeWorkedThisOut from './HowWeWorkedThisOut';
 const COMMUNITY_PROMPT = 'Suggest practical lower-emission options for commuting and community activities.';
 const MODE_LABELS = {
   'local-guidance': 'Local rule-based guidance',
-  'safety-guidance': 'Urgent safety guidance'
+  'safety-guidance': 'Urgent safety guidance',
+  'gemini-guidance': 'Gemini-assisted guidance'
 };
 
 function adviceForDisplay(advice) {

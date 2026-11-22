@@ -20,7 +20,7 @@ Open [Aura on Vercel](https://aura-air-quality-assistant.vercel.app). Loading th
 
 ## Run Aura locally
 
-Use Node.js 24 LTS and npm. Aura does not use a Gemini key or any other API key. It calls public Open-Meteo services without credentials for forecasts and geocoding, and uses local deterministic rules for advice.
+Use Node.js 24 LTS and npm. Aura works without API keys by default: it calls public Open-Meteo services without credentials for forecasts and geocoding, and uses local deterministic rules for advice. An optional server-side Gemini advisor can be enabled with `GEMINI_API_KEY`.
 
 ```bash
 npm ci
@@ -42,9 +42,9 @@ npm start
 
 Open [http://localhost:3001](http://localhost:3001).
 
-### Keyless advice and configuration
+### Keyless advice and optional Gemini mode
 
-Advice is generated locally from the selected household profile, question, and available air-quality context. Urgent symptom guidance is also local and bypasses the network. The app returns the completed rule-based advice as JSON; no hosted language model is called. Detailed recommendations are currently in English, while urgent safety summaries are translated. Copy `.env.example` only if you need to change the port, allowed origins, or trusted-proxy setting.
+Without `GEMINI_API_KEY`, advice is generated locally from the selected household profile, question, and available air-quality context. Urgent symptom guidance always stays local and bypasses the model. If a key is configured on the server, non-urgent advice uses the Google GenAI SDK with `GEMINI_MODEL` (default `gemini-3.8-flash`); responses are validated against Aura's advice schema. Gemini is prompted to answer in the selected language and keep impacts qualitative. If Gemini is unavailable or returns invalid advice, Aura falls back to local rules. The key is never sent to the browser. Use a newly created key, not the revoked credential. Add `GEMINI_API_KEY` and optionally `GEMINI_MODEL` to the server environment to enable this mode. Leave them unset for keyless local advice.
 
 ### Deploy behind a reverse proxy
 
@@ -67,6 +67,9 @@ flowchart LR
   Browser["React app and local profile"] --> OpenMeteo["Open-Meteo forecast and geocoding"]
   Browser --> Express["Express API and request validation"]
   Express --> Rules["Shared AQI policy and local advisor"]
+  Express -. Optional, non-urgent advice .-> Gemini["Google Gemini API"]
+  Gemini --> Express
+  Express --> Browser
   Express --> CPCB["No-key CPCB station feed mirror"]
   Rules --> Browser
   CPCB --> Express
@@ -74,14 +77,14 @@ flowchart LR
 ```
 
 - `frontend/` contains routes, location and forecast handling, browser storage, and browser tests.
-- `server/` contains the HTTP API, local streaming, station-feed integration, schemas, and API tests.
+- `server/` contains the HTTP API, local advice, optional Gemini integration, station-feed integration, schemas, and API tests.
 - `shared/` contains AQI bands, activity guidance, and the offline advisor used by both runtimes.
 
 ## Assumptions and privacy
 
 - Open-Meteo and CAMS provide model estimates. Street-level conditions can differ. CPCB station readings come from government data mirrored by Snapdata and may lag the source. For time-sensitive plans, check official local alerts and follow any clinician-provided care plan.
 - Selecting browser location rounds coordinates to about one kilometer before requesting Open-Meteo data. The station lookup sends coordinates rounded to two decimal places to Aura's own server; the server downloads the India feed and selects the nearest station without sending those coordinates to the feed mirror. Station coordinates are not returned to the browser. Coordinates are excluded from advisor requests. Household settings, saved readings, and the action ledger use browser storage. Chat is kept in memory while the advisor is open.
-- Advice requests include selected household fields, recent chat turns, air context, and an available nearby station reading. Aura does not send them to a hosted language model. Avoid entering identifying details.
+- Advice requests include selected household fields, recent chat turns, air context, and an available nearby station reading. They are sent to Google only when optional Gemini mode is enabled; common email and phone patterns are removed and coordinates are excluded. Avoid entering identifying details. Urgent symptom requests stay local.
 - The separate Sanctuary page contains the air-quality illustration and loads Three.js on demand for the interactive view. Filter effects in the scene are illustrative. Indoor PM2.5 requires a user-entered monitor reading.
 - The ledger counts the actions users record. Effects are qualitative. Hindi and Punjabi navigation and urgent safety summaries are available; detailed rule-based recommendations are currently in English.
 
@@ -96,7 +99,7 @@ npm --prefix frontend exec -- playwright install chromium
 npm run test:e2e
 ```
 
-Tests cover AQI boundaries, missing forecast points, optional weather failures, location search, household selection, conversational context, cache behavior, local advice, CPCB station selection, streamed responses, browser accessibility, and urgent guidance. Playwright runs at mobile and desktop widths with deterministic air-feed fixtures, real browser storage, and the local API. It checks keyboard focus, both share-card sizes, language selection, and axe WCAG 2.0 and 2.1 A/AA rules. The GitHub workflow runs those checks and audits all lockfiles.
+Tests cover AQI boundaries, missing forecast points, optional weather failures, location search, household selection, conversational context, cache behavior, local advice, CPCB station selection, browser accessibility, and urgent guidance. Playwright runs at mobile and desktop widths with deterministic air-feed fixtures, real browser storage, and the local API. It checks keyboard focus, both share-card sizes, language selection, and axe WCAG 2.0 and 2.1 A/AA rules. The GitHub workflow runs those checks and audits all lockfiles.
 
 ## Data and guidance sources
 

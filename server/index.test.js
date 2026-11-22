@@ -5,20 +5,22 @@ import { AdviceResponseSchema } from './schema.js';
 import { generateRuleBasedAdvice } from '../shared/advice.mjs';
 import { createGroundStationService } from './groundStations.js';
 
+const stationFixtureNow = Date.now();
+const stationObservedAt = new Date(stationFixtureNow - 60 * 60 * 1000).toISOString();
 const stationFeed = {
-  generated_at: '2026-11-22T09:30:00Z',
+  generated_at: new Date(stationFixtureNow).toISOString(),
   records: [
     {
       city: 'Delhi', station: 'Anand Vihar, Delhi - DPCC', pollutant: 'PM2.5', avg: 42.56,
-      latitude: 28.647622, longitude: 77.315809, updated_at: '2026-11-22T08:30:00Z'
+      latitude: 28.647622, longitude: 77.315809, updated_at: stationObservedAt
     },
     {
       city: 'Delhi', station: 'Anand Vihar, Delhi - DPCC', pollutant: 'PM10', avg: 78,
-      latitude: 28.647622, longitude: 77.315809, updated_at: '2026-11-22T08:30:00Z'
+      latitude: 28.647622, longitude: 77.315809, updated_at: stationObservedAt
     },
     {
       city: 'Delhi', station: 'ITO, Delhi - CPCB', pollutant: 'PM2.5', avg: 100,
-      latitude: 28.628624, longitude: 77.24106, updated_at: '2026-11-22T08:30:00Z'
+      latitude: 28.628624, longitude: 77.24106, updated_at: stationObservedAt
     }
   ]
 };

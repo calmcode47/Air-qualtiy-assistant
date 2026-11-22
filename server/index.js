@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { AdviceRequestSchema, AdviceResponseSchema } from './schema.js';
 import { groundAirContext } from './airContext.js';
 import { generateRuleBasedAdvice, isUrgentQuestion } from '../shared/advice.mjs';
+import { createGeminiAdvisor } from './geminiAdvice.js';
 import { createGroundStationService } from './groundStations.js';
 import { safeError, structuredLog } from './logging.js';
 
@@ -73,12 +74,14 @@ export function createApp({
   origins = production ? [] : DEFAULT_ORIGINS,
   trustProxy = false,
   logger = console,
-  groundStationFetch = fetch
+  groundStationFetch = fetch,
+  advisor = null
 } = {}) {
   const app = express();
   const allowedOrigins = new Set(origins);
   const json = express.json({ limit: '20kb', strict: true });
   const groundStations = createGroundStationService({ fetchImpl: groundStationFetch });
+  const liveAdvisorEnabled = typeof advisor === 'function';
 
   app.disable('x-powered-by');
   app.set('trust proxy', trustProxy);
@@ -107,8 +110,8 @@ export function createApp({
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
-      assistantMode: 'local-guidance',
-      liveAdvisorEnabled: false
+      assistantMode: liveAdvisorEnabled ? 'gemini-guidance' : 'local-guidance',
+      liveAdvisorEnabled
     });
   });
   app.get('/api/monitor', rateLimiter(20), async (req, res) => {
@@ -137,7 +140,7 @@ export function createApp({
       return res.status(503).json({ status: 'unavailable', error: 'Ground-monitor data is temporarily unavailable.' });
     }
   });
-  app.post('/api/advice', rateLimiter(30), json, (req, res, next) => {
+  app.post('/api/advice', rateLimiter(30), json, async (req, res, next) => {
     if (typeof req.body?.message === 'string' && req.body.message.length > 600) {
       return res.status(400).json({ error: 'User message cannot exceed 600 characters.' });
     }
@@ -148,9 +151,43 @@ export function createApp({
     const request = result.data;
     const input = { ...request, airData: groundAirContext(request.airData) };
     const urgent = isUrgentQuestion(request.message);
+    let advice;
+    let mode;
+    if (urgent) {
+      advice = generateRuleBasedAdvice(input);
+      mode = 'safety-guidance';
+    } else if (liveAdvisorEnabled) {
+      const providerRequest = new AbortController();
+      res.once('close', () => {
+        if (!res.writableEnded) providerRequest.abort();
+      });
+      try {
+        advice = AdviceResponseSchema.parse(await advisor(input, { signal: providerRequest.signal }));
+        mode = 'gemini-guidance';
+      } catch (error) {
+        if (res.destroyed) return;
+        if (error?.code !== 'ADVISOR_BUSY') {
+          structuredLog(logger, 'warn', {
+            timestamp: new Date().toISOString(),
+            event: 'gemini_advice_failed',
+            requestId: req.requestId,
+            method: req.method,
+            path: req.path,
+            error: {
+              name: typeof error?.name === 'string' ? error.name.slice(0, 100) : 'Error',
+              code: typeof error?.code === 'string' ? error.code.slice(0, 100) : undefined
+            }
+          });
+        }
+        advice = generateRuleBasedAdvice(input);
+        mode = 'local-guidance';
+      }
+    } else {
+      advice = generateRuleBasedAdvice(input);
+      mode = 'local-guidance';
+    }
+
     try {
-      const advice = generateRuleBasedAdvice(input);
-      const mode = urgent ? 'safety-guidance' : 'local-guidance';
       const validated = AdviceResponseSchema.parse(advice);
       res.set('X-Aura-Advice-Mode', mode);
       return res.json({ ...validated, mode });
@@ -222,14 +259,18 @@ const isMain = process.argv[1] && entry === path.resolve(process.argv[1]);
 if (isMain) {
   dotenv.config({ path: path.join(projectRoot, '.env') });
   const { CORS_ORIGIN, AURA_TRUST_PROXY } = process.env;
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-3.8-flash';
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(model)) throw new Error('GEMINI_MODEL contains unsupported characters.');
   const port = Number(process.env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer between 1 and 65535.');
   const app = createApp({
     production: process.env.NODE_ENV === 'production' || process.argv.includes('--production'),
     origins: CORS_ORIGIN?.split(',').map((value) => value.trim()).filter(Boolean),
-    trustProxy: parseTrustProxyHops(AURA_TRUST_PROXY)
+    trustProxy: parseTrustProxyHops(AURA_TRUST_PROXY),
+    advisor: apiKey ? createGeminiAdvisor({ apiKey, model }) : null
   });
-  app.listen(port, () => console.log(`Aura listening on port ${port}. Advice runs locally without provider credentials.`));
+  app.listen(port, () => console.log(`Aura listening on port ${port}. ${apiKey ? `Gemini advisor enabled (${model}).` : 'Advice runs locally without provider credentials.'}`));
 }
 
 export default createApp();
