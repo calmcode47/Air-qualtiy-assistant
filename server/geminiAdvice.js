@@ -54,6 +54,7 @@ const SYSTEM_INSTRUCTION = [
 const MAX_IN_FLIGHT = 4;
 const FAILURE_COOLDOWN_MS = 60_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+const GEMINI_TIMEOUT_MS = 12_000;
 
 function redactCommonIdentifiers(value) {
   if (typeof value === 'string') {
@@ -74,7 +75,7 @@ export function createGeminiAdvisor({ apiKey, model = 'gemini-3.8-flash', client
   const ai = client || new GoogleGenAI({
     apiKey: apiKey.trim(),
     httpOptions: {
-      timeout: 8000,
+      timeout: GEMINI_TIMEOUT_MS,
       retryOptions: { attempts: 1 }
     }
   });
@@ -99,7 +100,7 @@ export function createGeminiAdvisor({ apiKey, model = 'gemini-3.8-flash', client
         recentConversation: input.history || []
       });
       const serializedContext = JSON.stringify(context).replace(/[<>]/g, (char) => char === '<' ? '\\u003c' : '\\u003e');
-      const deadline = AbortSignal.timeout(8000);
+      const deadline = AbortSignal.timeout(GEMINI_TIMEOUT_MS);
       const abortSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
       const response = await ai.models.generateContent({
         model,
