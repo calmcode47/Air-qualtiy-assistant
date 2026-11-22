@@ -8,8 +8,6 @@ const ADVICE_JSON_SCHEMA = {
     summary: { type: 'string' },
     recommendations: {
       type: 'array',
-      minItems: 1,
-      maxItems: 4,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -29,7 +27,7 @@ const ADVICE_JSON_SCHEMA = {
             },
             required: ['metric', 'value', 'unit', 'confidence']
           },
-          assumptions: { type: 'array', maxItems: 5, items: { type: 'string' } },
+          assumptions: { type: 'array', items: { type: 'string' } },
           effort: { type: 'integer', enum: [1, 2, 3] }
         },
         required: ['id', 'title', 'action', 'why', 'impact', 'assumptions', 'effort']
