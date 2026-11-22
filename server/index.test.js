@@ -1,9 +1,39 @@
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
-import app, { createApp } from './index.js';
+import app, { createApp, parseTrustProxyHops } from './index.js';
 import { constructSystemPrompt, constructUserMessage, createGeminiAdvisor, generateAdviceWithValidation } from './geminiAdvice.js';
 import { AdviceResponseSchema } from './schema.js';
 import { generateMockAdvice } from './mockAdvice.js';
+
+test('proxy-hop parsing accepts numeric values', () => {
+  assert.equal(parseTrustProxyHops(undefined), false);
+  assert.equal(parseTrustProxyHops('2'), 2);
+  assert.throws(() => parseTrustProxyHops('1.5'), /non-negative integer/);
+  assert.throws(() => parseTrustProxyHops('-1'), /non-negative integer/);
+});
+
+test('health proxy probe logs the forwarded chain once only when requested', async (t) => {
+  const lines = [];
+  const server = createApp({
+    trustProxy: 2,
+    origins: [],
+    logger: { info: (line) => lines.push(JSON.parse(line)) }
+  }).listen(0);
+  t.after(() => server.close());
+  await new Promise((resolve) => server.once('listening', resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}/api/health`;
+
+  await fetch(baseUrl);
+  assert.equal(lines.length, 0);
+  await fetch(`${baseUrl}?proxyProbe=1`, {
+    headers: { 'X-Forwarded-For': '198.51.100.10, 203.0.113.20' }
+  });
+  await fetch(`${baseUrl}?proxyProbe=1`);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].event, 'health_proxy_probe');
+  assert.deepEqual(lines[0].ips, ['198.51.100.10', '203.0.113.20']);
+  assert.equal(lines[0].forwardedFor, '198.51.100.10, 203.0.113.20');
+});
 
 describe('Server Advice & Schema Validation', () => {
   let server;

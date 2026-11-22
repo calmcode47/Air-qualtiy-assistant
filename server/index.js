@@ -16,6 +16,15 @@ const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_TRACKED_CLIENTS = 10000;
 
+export function parseTrustProxyHops(value) {
+  if (value === undefined || value.trim() === '') return false;
+  const hops = Number(value);
+  if (!Number.isSafeInteger(hops) || hops < 0) {
+    throw new Error('AURA_TRUST_PROXY must be a non-negative integer.');
+  }
+  return hops;
+}
+
 function rateLimiter(limit) {
   const requests = new Map();
   let nextSweep = 0;
@@ -74,7 +83,8 @@ export function createApp({
   accessCode,
   production = false,
   origins = production ? [] : DEFAULT_ORIGINS,
-  trustProxy = false
+  trustProxy = false,
+  logger = console
 } = {}) {
   if (advise && (!accessCode || accessCode.length < 24 || accessCode.length > 256)) {
     throw new Error('GEMINI_API_KEY requires AURA_ADVISOR_ACCESS_CODE to be 24–256 characters. Generate a random access code.');
@@ -84,6 +94,7 @@ export function createApp({
   const access = createAdvisorAccess(accessCode, production);
   const allowedOrigins = new Set(origins);
   const json = express.json({ limit: '20kb', strict: true });
+  let hasLoggedProxyProbe = false;
 
   app.disable('x-powered-by');
   app.set('trust proxy', trustProxy);
@@ -105,6 +116,16 @@ export function createApp({
   });
 
   app.get('/api/health', (req, res) => {
+    if (req.query.proxyProbe === '1' && !hasLoggedProxyProbe) {
+      hasLoggedProxyProbe = true;
+      logger.info(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event: 'health_proxy_probe',
+        ip: req.ip,
+        ips: req.ips,
+        forwardedFor: req.get('x-forwarded-for') || null
+      }));
+    }
     const authenticated = access.isAuthenticated(req);
     res.json({
       status: 'ok',
@@ -191,7 +212,7 @@ if (isMain) {
     accessCode: advise ? AURA_ADVISOR_ACCESS_CODE : undefined,
     production: process.env.NODE_ENV === 'production' || process.argv.includes('--production'),
     origins: CORS_ORIGIN?.split(',').map((value) => value.trim()).filter(Boolean),
-    trustProxy: AURA_TRUST_PROXY === '1' ? 1 : false
+    trustProxy: parseTrustProxyHops(AURA_TRUST_PROXY)
   });
   app.listen(port, () => console.log(`Aura listening on port ${port}. Live advisor ${advise ? 'enabled with access code' : 'disabled'}.`));
 }

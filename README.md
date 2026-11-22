@@ -38,6 +38,10 @@ Copy `.env.example` to `.env`. Set `GEMINI_API_KEY` to your server-side key, and
 
 Anonymous visitors get personalized rule-based guidance. An authenticated browser can access Gemini for 12 hours or sign out earlier. Each answer labels its mode. A short provider deadline, one schema-repair attempt for malformed results, a concurrency limit, and a cooldown protect the service when the provider is slow or unavailable.
 
+### Verify trusted proxy hops
+
+Set `AURA_TRUST_PROXY` to the numeric count of trusted proxies in front of Express after checking the deployed forwarding chain. To log the chain once, request `/api/health?proxyProbe=1` through Vercel and inspect the Render logs for `health_proxy_probe`. The log entry contains `req.ip`, `req.ips`, and `X-Forwarded-For`. For a visitor-specific check, request this URL from the phone over mobile data before setting the final hop count. See Vercel's [request-header documentation](https://vercel.com/docs/headers/request-headers) and Render's [client-IP and rate-limiting guidance](https://render.com/articles/how-render-handles-ddos-attacks).
+
 ## Decision logic
 
 | Input | Result |
