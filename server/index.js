@@ -238,7 +238,8 @@ export function createApp({
   });
   app.use('/api', (req, res, next) => {
     res.set('Cache-Control', 'no-store');
-    if (edgeToken && !hasValidEdgeToken(req.get('x-aura-edge-token'), edgeToken)) {
+    const isHealthCheck = req.method === 'GET' && req.path === '/health';
+    if (!isHealthCheck && edgeToken && !hasValidEdgeToken(req.get('x-aura-edge-token'), edgeToken)) {
       return res.status(403).json({ error: 'Request must come through the trusted application edge.' });
     }
     if (!allowedOrigin(req, req.get('origin'), allowedOrigins)) {

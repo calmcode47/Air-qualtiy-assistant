@@ -279,6 +279,10 @@ test('Render API rejects direct requests with spoofed forwarded IPs when edge pr
   assert.equal(response.status, 403);
   assert.match((await response.json()).error, /trusted application edge/);
   assert.equal(advisorCalls, 0);
+
+  const healthResponse = await fetch(`${baseUrl}/health`);
+  assert.equal(healthResponse.status, 200);
+  assert.equal((await healthResponse.json()).status, 'ok');
 });
 
 test('POST /api/advice returns schema-valid personalized local guidance without credentials', async (t) => {
