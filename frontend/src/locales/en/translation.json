@@ -7,7 +7,7 @@
   },
   "nav": {
     "overview": "Overview",
-    "advisor": "AI Advisor",
+    "advisor": "Advisor",
     "routines": "Daily Routines",
     "hacks": "DIY Filter & Hacks",
     "community": "Community Shield",
@@ -22,6 +22,34 @@
     "sample_notice": "Sample Fallback Data",
     "inversion_alert": "Air-quality update:",
     "inversion_summary": "Air-quality values for {{city}} are model estimates, not street-level measurements."
+  },
+  "advisory_banner": {
+    "offline_saved": "Offline — showing saved data",
+    "stale_cached": "Data is {{hours}}h old (cached)",
+    "cached": "Showing cached data",
+    "offline_no_reading": "Offline — no saved reading for this location",
+    "model_estimate": "Open-Meteo model estimate · not a street-level sensor",
+    "unavailable": "Air-quality reading unavailable",
+    "unavailable_value": "Unavailable",
+    "educational_health_tool": "Educational Health Tool",
+    "dismiss": "Dismiss banner"
+  },
+  "ground_station": {
+    "title": "Nearby ground-monitor readings",
+    "description": "CPCB station observations mirrored from India's government open-data feed. Available only in India.",
+    "loading": "Checking nearby CPCB stations…",
+    "unsupported_region": "CPCB station readings are available only for locations in India.",
+    "no_station": "No CPCB station was found within {{radius}} km.",
+    "no_measurements": "Nearby monitors were found, but no PM2.5 or PM10 readings were returned.",
+    "unavailable": "CPCB station source unavailable. Try again later.",
+    "distance": "{{distance}} km from the selected location",
+    "reported": "Reported {{time}}",
+    "reported_average": "{{parameter}} reported average",
+    "cpcb_source": "CPCB data via data.gov.in",
+    "feed_mirror": "Feed mirror details",
+    "license": "Government Open Data License - India",
+    "source_credit": "Source credit:",
+    "caution": "Values are reported averages. Snapdata does not specify their averaging period. The feed is provided by a third-party mirror and refreshed periodically. Values are not an AQI or a measurement at your exact location."
   },
   "hero": {
     "status_summary": "The reported air-quality category is {{category}} for {{city}}.",

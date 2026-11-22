@@ -32,7 +32,7 @@ function TitleWatcher() {
     const titles = {
       '/': 'Aura — Urban Air Quality & Winter Smog Companion',
       '/overview': 'Aura — Urban Air Quality & Winter Smog Companion',
-      '/advisor': 'Aura • AI Smog Advisor',
+      '/advisor': 'Aura • Air Quality Advisor',
       '/routines': 'Aura • Hourly Air Quality & Daily Routines',
       '/hacks': 'Aura • Indoor Air and Filtration Guide',
       '/community': 'Aura • Community Support Ideas',

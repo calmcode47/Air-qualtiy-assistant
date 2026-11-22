@@ -4,6 +4,7 @@ import {
   searchLocations,
   DEFAULT_LOCATIONS
 } from '../services/airData';
+import { fetchNearbyGroundStation } from '../services/groundStation';
 
 const AirContext = createContext(null);
 
@@ -39,6 +40,7 @@ export function AirProvider({ children }) {
   });
 
   const [airData, setAirData] = useState(() => getInitialLocationData(initialLocation));
+  const [groundStation, setGroundStation] = useState({ status: 'loading' });
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,6 +54,13 @@ export function AirProvider({ children }) {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
+    fetchNearbyGroundStation(location, controller.signal)
+      .then((station) => {
+        if (!controller.signal.aborted) setGroundStation(station);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setGroundStation({ status: 'unavailable' });
+      });
     return fetchAirData(location, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setAirData(data);
@@ -74,6 +83,7 @@ export function AirProvider({ children }) {
   const refresh = useCallback(() => {
     setIsLoading(true);
     setError(null);
+    setGroundStation({ status: 'loading' });
     return loadAirData(latestLocation.current);
   }, [loadAirData]);
 
@@ -149,6 +159,7 @@ export function AirProvider({ children }) {
     <AirContext.Provider
       value={{
         airData,
+        groundStation,
         outdoorAqi: airData?.aqi ?? null,
         isLoading,
         error,

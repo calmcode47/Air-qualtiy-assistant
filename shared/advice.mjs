@@ -1,4 +1,5 @@
 import { getUsAqiCategory, isSensitiveHousehold, normalizeAqi, outdoorGuidance } from './aqi.mjs';
+import { formatGroundMonitorNote } from './groundMonitor.mjs';
 
 const URGENT_SYMPTOMS = /chest (?:pain|tightness)|severe (?:breathlessness|shortness of breath|breathing difficulty)|(?:can['’]?t|cannot) breathe|(?:blue|bluish) lips|acute asthma|सीने में दर्द|सांस नहीं|साँस नहीं|नीले होंठ|ਛਾਤੀ ਵਿੱਚ ਦਰਦ|ਸਾਹ ਨਹੀਂ|ਨੀਲੇ ਬੁੱਲ੍ਹ/iu;
 
@@ -33,7 +34,7 @@ function recommendation(id, title, action, why, impact, assumptions, effort = 1)
 }
 
 /** Deterministic offline guidance. It intentionally avoids unmeasured numeric benefits. */
-export function generateRuleBasedAdvice({ message = '', airData = {}, profile = {}, language = 'en', history = [] } = {}) {
+export function generateRuleBasedAdvice({ message = '', airData = {}, profile = {}, language = 'en', history = [], groundMonitor = null } = {}) {
   const query = String(message).toLowerCase();
   profile = profile && typeof profile === 'object' && !Array.isArray(profile) ? profile : {};
   airData = airData && typeof airData === 'object' && !Array.isArray(airData) ? airData : {};
@@ -183,9 +184,13 @@ export function generateRuleBasedAdvice({ message = '', airData = {}, profile = 
     : airData.isCached
       ? `No live reading is available for ${city}; the cached estimate is ${airData.staleHours || 'an unknown number of'} hours old, so use a current local advisory for decisions.`
       : `No live reading is available for ${city}. Check a current local advisory before making time-sensitive decisions.`;
+  const groundMonitorNote = formatGroundMonitorNote(groundMonitor);
 
   return {
-    summary: `${dataNote} ${hasSensitiveHouseholdMember ? 'Because this household includes people who may be more sensitive to particle pollution, use extra caution and follow any personal care plan.' : 'Use current local guidance and adjust activity based on conditions and how you feel.'}`,
+    summary: [groundMonitorNote, dataNote, hasSensitiveHouseholdMember
+      ? 'People in this household may be more sensitive to particle pollution; use extra caution and follow any personal care plan.'
+      : 'Use current local guidance and adjust activity based on conditions and how you feel.']
+      .filter(Boolean).join(' ').slice(0, 500),
     recommendations: ordered.slice(0, 4),
     followUp: conditions.some((condition) => condition === 'asthma' || condition === 'heart')
       ? 'For a known heart or lung condition, follow your clinician-provided action plan.'

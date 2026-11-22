@@ -49,7 +49,7 @@ export default function Footer({ onNavigate, openMaskGuide, openGlossary }) {
               Core Assistant Tools
             </span>
             <ul className="space-y-1.5 text-[#A6B8AC]">
-              <li><button onClick={() => onNavigate('advisor')} className="hover:text-white transition">GenAI Smog Advisor</button></li>
+              <li><button onClick={() => onNavigate('advisor')} className="hover:text-white transition">Air Quality Advisor</button></li>
               <li><button onClick={() => onNavigate('routines')} className="hover:text-white transition">Hourly Forecast &amp; Routines</button></li>
               <li><button onClick={() => onNavigate('hacks')} className="hover:text-white transition">Indoor Filtration Guide</button></li>
               <li><button onClick={() => onNavigate('community')} className="hover:text-white transition">Community Action Ideas</button></li>

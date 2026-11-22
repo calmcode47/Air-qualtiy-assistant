@@ -14,12 +14,12 @@ import {
   X,
   Search,
   Crosshair,
-  WifiOff,
   RotateCw,
   Globe,
   BookOpen,
   Share2
 } from 'lucide-react';
+import AdvisoryBanner from './AdvisoryBanner';
 import { useAir } from '../context/AirContext';
 import { useProfile } from '../store/profile';
 
@@ -39,7 +39,6 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
-  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const searchInputRef = useRef(null);
   const searchButtonRef = useRef(null);
 
@@ -52,7 +51,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
 
   const navItems = [
     { id: 'overview', path: '/', label: t('nav.overview', 'Overview'), icon: Home },
-    { id: 'advisor', path: '/advisor', label: t('nav.advisor', 'AI Advisor'), icon: Sparkles },
+    { id: 'advisor', path: '/advisor', label: t('nav.advisor', 'Advisor'), icon: Sparkles },
     { id: 'routines', path: '/routines', label: t('nav.routines', 'Daily Routines'), icon: Clock },
     { id: 'hacks', path: '/hacks', label: t('nav.hacks', 'DIY Filter & Hacks'), icon: Wrench },
     { id: 'community', path: '/community', label: t('nav.community', 'Community Shield'), icon: Users },
@@ -114,51 +113,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
 
   return (
     <header className="sticky top-0 z-50 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-[#E7E0D2] shadow-xs">
-      {/* Top Advisory Banner (Static, Dismissible) */}
-      {!isBannerDismissed && (
-        <div className="bg-[#18261F] text-[#F4F2EC] px-4 py-1.5 text-xs font-medium">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5">
-            <div className="flex items-center gap-2">
-              {isOffline && isCached ? (
-                <span className="flex items-center gap-1.5 text-[#F3C474] font-semibold text-[11px]">
-                  <WifiOff className="w-3.5 h-3.5 fill-[#D18820] text-[#18261F]" />
-                  Offline — showing saved data
-                </span>
-              ) : (isStale || isCached) ? (
-                <span className="flex items-center gap-1.5 text-[#F3C474] font-semibold text-[11px]">
-                  <Clock className="w-3.5 h-3.5 fill-[#D18820] text-[#18261F]" />
-                  {isStale ? `Data is ${staleHours}h old (cached)` : 'Showing cached data'}
-                </span>
-              ) : isOffline ? (
-                <span className="flex items-center gap-1.5 text-[#F3C474] font-semibold text-[11px]">
-                  <WifiOff className="w-3.5 h-3.5" />
-                  Offline — no saved reading for this location
-                </span>
-              ) : (
-                <>
-                  <span className="text-[11px] text-[#D8E4DC]">
-                    {cityData.isLive ? 'Open-Meteo model estimate · not a street-level sensor' : 'Air-quality reading unavailable'}
-                  </span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-[11px] text-[#A6BCB0] font-mono-code">
-              <span>Lower forecast period: <strong className="text-[#8AB394]">{cityData.cleanestWindow || 'Unavailable'}</strong></span>
-              <span className="hidden md:inline">•</span>
-              <span className="hidden md:inline">Educational Health Tool</span>
-              <button
-                type="button"
-                onClick={() => setIsBannerDismissed(true)}
-                className="ml-2 text-[#A6BCB0] hover:text-white p-0.5 rounded transition"
-                title="Dismiss banner"
-                aria-label="Dismiss banner"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdvisoryBanner {...{ isOffline, isCached, isStale, staleHours, cityData }} />
 
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2">

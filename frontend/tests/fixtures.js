@@ -4,6 +4,9 @@ export const forecastTime = Date.parse('2026-11-21T12:30:00Z') / 1000;
 
 export const test = base.extend({
   page: async ({ page }, runWithPage) => {
+    await page.route(/\/api\/monitor(?:\?.*)?$/, (route) => route.fulfill({
+      json: { status: 'no_station', radiusKm: 25 }
+    }));
     await page.route('https://api.open-meteo.com/**', (route) => route.fulfill({
       json: { current: { wind_speed_10m: 7.2 } }
     }));

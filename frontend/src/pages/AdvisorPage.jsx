@@ -1,9 +1,9 @@
 import React from 'react';
-import GenAIAssistant from '../components/GenAIAssistant';
+import LocalAdvisor from '../components/LocalAdvisor';
 import { useAir } from '../context/AirContext';
 
 export default function AdvisorPage() {
-  const { airData: cityData, outdoorAqi } = useAir();
+  const { airData: cityData, outdoorAqi, groundStation } = useAir();
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -13,7 +13,7 @@ export default function AdvisorPage() {
             <div className="flex items-center gap-2">
               <span className="text-xl">🤖</span>
               <h1 className="text-2xl sm:text-3xl font-extrabold font-serif-natural text-[#18261F]">
-                GenAI Urban Smog Advisor
+                Air Quality Advisor
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-[#56685F] mt-1 max-w-2xl">
@@ -29,8 +29,8 @@ export default function AdvisorPage() {
         </div>
       </div>
 
-      {/* Main GenAI Component */}
-      <GenAIAssistant key={cityData?.id} cityData={cityData} outdoorAqi={outdoorAqi} />
+      {/* Local advisor */}
+      <LocalAdvisor key={cityData?.id} cityData={cityData} outdoorAqi={outdoorAqi} groundMonitor={groundStation} />
     </div>
   );
 }

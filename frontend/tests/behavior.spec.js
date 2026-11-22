@@ -200,7 +200,7 @@ test.describe('Aura Behavior Verification Suite', () => {
 
     // Verify structured guidance is visibly labeled and avoids invented dose totals.
     await expect(page.getByText('Direct impact:', { exact: false }).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Offline demo guidance')).toBeVisible();
+    await expect(page.getByText('Local rule-based guidance')).toBeVisible();
     await expect(page.getByText('Limits and assumptions').first()).toBeVisible();
   });
 

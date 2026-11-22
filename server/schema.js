@@ -46,15 +46,33 @@ const AirDataSchema = z.object({
   cleanestWindowPeakAqi: z.number().nonnegative().nullable().optional()
 });
 
+const GroundMonitorSchema = z.object({
+  status: z.string().max(40),
+  source: z.string().max(100).optional(),
+  sourceUrl: z.string().url().max(500).optional(),
+  mirrorUrl: z.string().url().max(500).optional(),
+  license: z.string().max(120).optional(),
+  locationName: z.string().max(120).optional(),
+  city: z.string().max(100).nullable().optional(),
+  distanceKm: z.number().nonnegative().nullable().optional(),
+  generatedAt: z.string().datetime().nullable().optional(),
+  cached: z.boolean().optional(),
+  measurements: z.array(z.object({
+    parameter: z.enum(['PM2.5', 'PM10']),
+    value: z.number().nonnegative(),
+    unit: z.string().max(30),
+    observedAt: z.string().datetime()
+  }).strict()).max(4).optional()
+}).strict();
+
 export const AdviceRequestSchema = z.object({
   message: z.string().trim().min(1).max(600),
   profile: HouseholdSchema.nullable().optional(),
   airData: AirDataSchema.optional(),
+  groundMonitor: GroundMonitorSchema.optional(),
   language: z.enum(['en', 'hi', 'pa']).default('en'),
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().max(1200)
   }).strict()).max(6).optional(),
-  mock: z.boolean().optional(),
-  stream: z.boolean().optional()
 }).strict();

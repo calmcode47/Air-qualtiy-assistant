@@ -1,13 +1,13 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GoogleGenAI } from '@google/genai';
 import { AdviceRequestSchema, AdviceResponseSchema } from './schema.js';
-import { createAdvisorAccess } from './advisorAccess.js';
-import { createGeminiAdvisor } from './geminiAdvice.js';
 import { groundAirContext } from './airContext.js';
 import { generateRuleBasedAdvice, isUrgentQuestion } from '../shared/advice.mjs';
+import { createGroundStationService } from './groundStations.js';
+import { safeError, structuredLog } from './logging.js';
 
 const entry = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(entry), '..');
@@ -68,36 +68,25 @@ function allowedOrigin(req, origin, allowedOrigins) {
   }
 }
 
-function sendAdvice(req, res, advice, mode, stream) {
-  const validated = AdviceResponseSchema.parse(advice);
-  res.set('X-Aura-Advice-Mode', mode);
-  if (stream || req.headers.accept === 'text/event-stream') {
-    res.set({ 'Content-Type': 'text/event-stream; charset=utf-8', 'X-Accel-Buffering': 'no' });
-    return res.end(`data: ${JSON.stringify({ complete: true, advice: validated, mode })}\n\n`);
-  }
-  return res.json({ ...validated, mode });
-}
-
 export function createApp({
-  advise,
-  accessCode,
   production = false,
   origins = production ? [] : DEFAULT_ORIGINS,
   trustProxy = false,
-  logger = console
+  logger = console,
+  groundStationFetch = fetch
 } = {}) {
-  if (advise && (!accessCode || accessCode.length < 24 || accessCode.length > 256)) {
-    throw new Error('GEMINI_API_KEY requires AURA_ADVISOR_ACCESS_CODE to be 24–256 characters. Generate a random access code.');
-  }
-
   const app = express();
-  const access = createAdvisorAccess(accessCode, production);
   const allowedOrigins = new Set(origins);
   const json = express.json({ limit: '20kb', strict: true });
-  let hasLoggedProxyProbe = false;
+  const groundStations = createGroundStationService({ fetchImpl: groundStationFetch });
 
   app.disable('x-powered-by');
   app.set('trust proxy', trustProxy);
+  app.use((req, res, next) => {
+    req.requestId = randomUUID();
+    res.set('X-Request-ID', req.requestId);
+    next();
+  });
   app.use((req, res, next) => {
     res.set({
       'X-Content-Type-Options': 'nosniff',
@@ -116,27 +105,39 @@ export function createApp({
   });
 
   app.get('/api/health', (req, res) => {
-    if (req.query.proxyProbe === '1' && !hasLoggedProxyProbe) {
-      hasLoggedProxyProbe = true;
-      logger.info(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        event: 'health_proxy_probe',
-        ip: req.ip,
-        ips: req.ips,
-        forwardedFor: req.get('x-forwarded-for') || null
-      }));
-    }
-    const authenticated = access.isAuthenticated(req);
     res.json({
       status: 'ok',
-      assistantMode: advise && authenticated ? 'gemini' : 'offline-demo',
-      liveAdvisorEnabled: Boolean(advise),
-      authenticated
+      assistantMode: 'local-guidance',
+      liveAdvisorEnabled: false
     });
   });
-  app.post('/api/session', rateLimiter(6), json, access.login);
-  app.delete('/api/session', access.logout);
-  app.post('/api/advice', rateLimiter(30), json, async (req, res, next) => {
+  app.get('/api/monitor', rateLimiter(20), async (req, res) => {
+    const latitude = Number(req.query.lat);
+    const longitude = Number(req.query.lon);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
+      || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      return res.status(400).json({ status: 'invalid_request', error: 'Provide valid latitude and longitude.' });
+    }
+    try {
+      const stationRequest = new AbortController();
+      res.once('close', () => {
+        if (!res.writableEnded) stationRequest.abort();
+      });
+      return res.json(await groundStations.getNearestStation(latitude, longitude, stationRequest.signal));
+    } catch (error) {
+      structuredLog(logger, 'warn', {
+        timestamp: new Date().toISOString(),
+        event: 'ground_station_lookup_failed',
+        requestId: req.requestId,
+        method: req.method,
+        path: req.path,
+        status: Number.isInteger(error?.status) ? error.status : undefined,
+        error: safeError(error)
+      });
+      return res.status(503).json({ status: 'unavailable', error: 'Ground-monitor data is temporarily unavailable.' });
+    }
+  });
+  app.post('/api/advice', rateLimiter(30), json, (req, res, next) => {
     if (typeof req.body?.message === 'string' && req.body.message.length > 600) {
       return res.status(400).json({ error: 'User message cannot exceed 600 characters.' });
     }
@@ -147,16 +148,14 @@ export function createApp({
     const request = result.data;
     const input = { ...request, airData: groundAirContext(request.airData) };
     const urgent = isUrgentQuestion(request.message);
-    const useGemini = !urgent && !request.mock && advise && access.isAuthenticated(req);
-    const connection = new AbortController();
-    res.once('close', () => connection.abort());
     try {
-      const { advice, mode } = useGemini
-        ? await advise(input, connection.signal)
-        : { advice: generateRuleBasedAdvice(input), mode: urgent ? 'safety-guidance' : 'offline-demo' };
-      if (!res.destroyed) return sendAdvice(req, res, advice, mode, request.stream);
+      const advice = generateRuleBasedAdvice(input);
+      const mode = urgent ? 'safety-guidance' : 'local-guidance';
+      const validated = AdviceResponseSchema.parse(advice);
+      res.set('X-Aura-Advice-Mode', mode);
+      return res.json({ ...validated, mode });
     } catch (error) {
-      if (!res.destroyed) next(error);
+      if (!res.destroyed) return next(error);
     }
   });
 
@@ -188,11 +187,32 @@ export function createApp({
 
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
-    if (error.type === 'entity.too.large') return res.status(413).json({ error: 'Request body exceeds the 20 kB limit.' });
-    if (error.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body must be valid JSON.' });
-    if (error.status === 415) return res.status(415).json({ error: 'Use a supported JSON encoding.' });
-    console.error('Aura request could not be completed.');
-    return res.status(500).json({ error: 'The server could not complete this request.' });
+    let status = Number.isInteger(error.status) ? error.status : 500;
+    let publicError = 'The server could not complete this request.';
+    if (error.type === 'entity.too.large') {
+      status = 413;
+      publicError = 'Request body exceeds the 20 kB limit.';
+    } else if (error.type === 'entity.parse.failed') {
+      status = 400;
+      publicError = 'Request body must be valid JSON.';
+    } else if (status === 415) {
+      publicError = 'Use a supported JSON encoding.';
+    } else if (status < 400 || status > 599) {
+      status = 500;
+    }
+    structuredLog(logger, status >= 500 ? 'error' : 'warn', {
+      timestamp: new Date().toISOString(),
+      event: 'http_request_error',
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      status,
+      error: status >= 500 ? safeError(error) : {
+        name: typeof error?.name === 'string' ? error.name : 'ClientRequestError',
+        type: typeof error?.type === 'string' ? error.type : undefined
+      }
+    });
+    return res.status(status).json({ error: publicError, requestId: req.requestId });
   });
 
   return app;
@@ -201,20 +221,15 @@ export function createApp({
 const isMain = process.argv[1] && entry === path.resolve(process.argv[1]);
 if (isMain) {
   dotenv.config({ path: path.join(projectRoot, '.env') });
-  const { GEMINI_API_KEY, GEMINI_MODEL, AURA_ADVISOR_ACCESS_CODE, VITE_USE_MOCK, CORS_ORIGIN, AURA_TRUST_PROXY } = process.env;
+  const { CORS_ORIGIN, AURA_TRUST_PROXY } = process.env;
   const port = Number(process.env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer between 1 and 65535.');
-  const advise = GEMINI_API_KEY && VITE_USE_MOCK !== 'true'
-    ? createGeminiAdvisor(new GoogleGenAI({ apiKey: GEMINI_API_KEY, apiVersion: 'v1beta' }), GEMINI_MODEL || 'gemini-3.8-flash')
-    : undefined;
   const app = createApp({
-    advise,
-    accessCode: advise ? AURA_ADVISOR_ACCESS_CODE : undefined,
     production: process.env.NODE_ENV === 'production' || process.argv.includes('--production'),
     origins: CORS_ORIGIN?.split(',').map((value) => value.trim()).filter(Boolean),
     trustProxy: parseTrustProxyHops(AURA_TRUST_PROXY)
   });
-  app.listen(port, () => console.log(`Aura listening on port ${port}. Live advisor ${advise ? 'enabled with access code' : 'disabled'}.`));
+  app.listen(port, () => console.log(`Aura listening on port ${port}. Advice runs locally without provider credentials.`));
 }
 
 export default createApp();

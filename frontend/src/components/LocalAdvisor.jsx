@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Compass, Send, Sparkles, Users, Wind, Wrench, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Compass, Send, Users, Wind, Wrench, CheckCircle2 } from 'lucide-react';
 import { HOUSEHOLD_PERSONAS } from '../data/householdPersonas';
 import { PERSONA_PRESETS, useProfile } from '../store/profile';
 import i18n from '../i18n';
@@ -9,9 +9,7 @@ import HowWeWorkedThisOut from './HowWeWorkedThisOut';
 
 const COMMUNITY_PROMPT = 'Suggest practical lower-emission options for commuting and community activities.';
 const MODE_LABELS = {
-  gemini: 'Gemini response (schema validated)',
-  'offline-demo': 'Offline demo guidance',
-  'offline-guidance': 'Offline rule-based guidance',
+  'local-guidance': 'Local rule-based guidance',
   'safety-guidance': 'Urgent safety guidance'
 };
 
@@ -22,30 +20,20 @@ function adviceForDisplay(advice) {
   return advice;
 }
 
-export default function GenAIAssistant({ cityData, outdoorAqi }) {
+export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
   const { profile } = useProfile();
   const [selectedPersonaId, setSelectedPersonaId] = useState('saved');
   const [searchParams] = useSearchParams();
   const [inputQuestion, setInputQuestion] = useState(() => searchParams.get('topic') === 'community' ? COMMUNITY_PROMPT : '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
-  const [access, setAccess] = useState(null);
-  const [accessCode, setAccessCode] = useState('');
-  const [accessError, setAccessError] = useState('');
-  const [updatingAccess, setUpdatingAccess] = useState(false);
   const pendingRequest = useRef(null);
   const conversation = useRef(null);
   const currentPersona = HOUSEHOLD_PERSONAS.find((persona) => persona.id === selectedPersonaId);
   const householdProfile = PERSONA_PRESETS[selectedPersonaId] || profile;
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/health', { signal: controller.signal })
-      .then((response) => response.ok ? response.json() : null)
-      .then((status) => { if (status) setAccess(status); })
-      .catch(() => {});
     return () => {
-      controller.abort();
       pendingRequest.current?.abort();
     };
   }, []);
@@ -55,32 +43,6 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
     if (log) log.scrollTop = log.scrollHeight;
   }, [chatHistory, isGenerating]);
 
-  async function updateSession(event, method) {
-    event.preventDefault();
-    if (updatingAccess) return;
-    setUpdatingAccess(true);
-    setAccessError('');
-    try {
-      const response = await fetch('/api/session', {
-        method,
-        signal: AbortSignal.timeout(8000),
-        ...(method === 'POST' ? {
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: accessCode })
-        } : {})
-      });
-      if (!response.ok) {
-        setAccessError(response.status === 401 ? 'Check your access code.' : 'Access is temporarily unavailable. Try again shortly.');
-        return;
-      }
-      setAccess((status) => ({ ...status, authenticated: method === 'POST' }));
-      setAccessCode('');
-    } catch {
-      setAccessError('The advisor could not update your session. Check your connection.');
-    } finally {
-      setUpdatingAccess(false);
-    }
-  }
   const language = i18n.resolvedLanguage || 'en';
   const aqiLabel = cityData?.aqiSystem || 'US AQI';
   const readingStatus = cityData?.isLive
@@ -91,12 +53,12 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
 
   const renderAdvice = (advice, mode) => {
     const safeAdvice = adviceForDisplay(advice);
-    const responseMode = MODE_LABELS[mode] || MODE_LABELS['offline-guidance'];
+    const responseMode = MODE_LABELS[mode] || MODE_LABELS['local-guidance'];
     return (
       <div className="space-y-3.5 text-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold ${mode === 'gemini' ? 'bg-[#EAF2ED] text-[#315E48] border-[#CCE0D4]' : 'bg-[#FBF5EC] text-[#79500F] border-[#F2E0C5]'}`}>
-            {mode === 'gemini' ? <Sparkles className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#CCE0D4] bg-[#EAF2ED] px-2 py-1 text-[10px] font-bold text-[#315E48]">
+            <CheckCircle2 className="w-3 h-3" />
             {responseMode}
           </span>
           <span className="text-[10px] text-[#56685F]">Advice is educational; impacts are not personal measurements.</span>
@@ -168,6 +130,7 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
       message,
       profile: { adults, children, elderly, conditions, commute, cookingFuel, homeType, purifierOwned, monthlyBudgetBand },
       airData,
+      groundMonitor: groundMonitor?.status === 'available' ? groundMonitor : undefined,
       language,
       history: priorHistory
     };
@@ -182,22 +145,21 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
       }
       const response = await fetch('/api/advice', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(35000)]),
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]),
         body: JSON.stringify(input)
       });
       if (!response.ok) throw new Error('Advice service unavailable.');
-      const { mode, ...advice } = await response.json();
       controller.signal.throwIfAborted();
-      if (access?.authenticated && mode === 'offline-demo') {
-        setAccess((status) => ({ ...status, authenticated: false }));
-      }
+      const { mode, ...advice } = await response.json();
       addAdvice(adviceForDisplay(advice), mode);
     } catch {
-      if (!controller.signal.aborted) addAdvice(generateRuleBasedAdvice(input), 'offline-guidance');
+      if (!controller.signal.aborted) addAdvice(generateRuleBasedAdvice(input), 'local-guidance');
     } finally {
       if (pendingRequest.current === controller) pendingRequest.current = null;
-      if (!controller.signal.aborted) setIsGenerating(false);
+      if (!controller.signal.aborted) {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -224,7 +186,7 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
       <section className="bg-white rounded-3xl border border-[#E6DED6] p-6 sm:p-7 paper-shadow space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-[#E6DED6]">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#EAF2ED] text-[#3D6B56] border border-[#CCE0D4] flex items-center justify-center"><Sparkles className="w-5 h-5" /></div>
+            <div className="w-10 h-10 rounded-2xl bg-[#EAF2ED] text-[#3D6B56] border border-[#CCE0D4] flex items-center justify-center"><CheckCircle2 className="w-5 h-5" /></div>
             <div>
               <h2 className="text-lg font-serif-natural font-bold text-[#1A2922]">Personalized air-quality guidance</h2>
               <p className="text-xs text-[#53645C] mt-1">Suggestions use your selected household profile and the available location reading.</p>
@@ -283,27 +245,6 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
           </div>
         </div>
 
-        {language !== 'en' && <p className="text-xs text-[#53645C]">Offline recommendation details are in English. Gemini can respond in the selected language.</p>}
-        {access?.liveAdvisorEnabled && (
-          <div className="rounded-xl bg-[#FAF7F2] border border-[#DFD6CB] p-3 space-y-2">
-            {access.authenticated ? (
-              <form onSubmit={(event) => updateSession(event, 'DELETE')} className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold">Gemini is unlocked for this browser.</p>
-                <button type="submit" disabled={updatingAccess} className="text-xs font-bold underline px-2 py-2">Sign out</button>
-              </form>
-            ) : (
-              <form onSubmit={(event) => updateSession(event, 'POST')} className="space-y-2">
-                <label htmlFor="advisor-access-code" className="block text-xs font-semibold">Gemini access code</label>
-                <div className="flex flex-wrap gap-2">
-                  <input id="advisor-access-code" type="password" autoComplete="current-password" value={accessCode} maxLength={256} onChange={(event) => setAccessCode(event.target.value)} required className="min-w-0 flex-1 border border-[#7F958A] rounded-lg p-2 text-sm" />
-                  <button type="submit" disabled={updatingAccess} className="bg-[#1A2922] text-white px-3 py-2 rounded-lg text-xs font-semibold">Unlock Gemini</button>
-                </div>
-                <p className="text-xs text-[#53645C]">Offline guidance is available without an access code.</p>
-              </form>
-            )}
-            {accessError && <p role="alert" className="text-xs text-[#7A2E3A]">{accessError}</p>}
-          </div>
-        )}
         <div ref={conversation} tabIndex={0} role="log" aria-label="Assistant conversation" aria-live="polite" className="bg-[#FAF7F2] rounded-2xl p-4 sm:p-6 border border-[#E6DED6] space-y-4 max-h-[520px] overflow-y-auto focus:outline-none focus:ring-1 focus:ring-[#1A2922]">
           {chatHistory.length === 0 && (
             <p className="text-xs text-[#53645C]">Ask a question or choose a topic. Aura will label live readings, cached values, and offline guidance so you can judge how current the information is.</p>
@@ -317,7 +258,9 @@ export default function GenAIAssistant({ cityData, outdoorAqi }) {
             </div>
           ))}
           {isGenerating && (
-            <div className="text-xs text-[#53645C]" role="status">Preparing guidance from the selected profile and available air-quality data…</div>
+            <div className="space-y-1 text-xs text-[#53645C]">
+              <div role="status">Preparing guidance from the selected profile and available air-quality data…</div>
+            </div>
           )}
         </div>
 

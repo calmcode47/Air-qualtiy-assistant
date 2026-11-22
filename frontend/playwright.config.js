@@ -14,7 +14,6 @@ export default defineConfig({
     command: 'npm --prefix .. run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: false,
-    env: { VITE_USE_MOCK: 'true' },
     timeout: 30000
   },
   projects: [

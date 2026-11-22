@@ -7,7 +7,7 @@ const tools = [
     path: '/advisor',
     icon: Sparkles,
     iconStyle: 'bg-[#FBF5EC] text-[#8C5311]',
-    title: 'GenAI Smog Advisor',
+    title: 'Air Quality Advisor',
     description: 'Ask about daily routines, indoor particle sources, filtration choices, or how to interpret this location forecast.'
   },
   {
