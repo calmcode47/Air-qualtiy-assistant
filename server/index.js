@@ -69,6 +69,32 @@ function allowedOrigin(req, origin, allowedOrigins) {
   }
 }
 
+function sanitizedProviderError(error) {
+  let providerError;
+  if (typeof error?.message === 'string') {
+    try {
+      providerError = JSON.parse(error.message)?.error;
+    } catch {
+      providerError = null;
+    }
+  }
+  const message = typeof providerError?.message === 'string'
+    ? providerError.message
+      .replace(/AIza[\w-]{20,}/gu, '[API key removed]')
+      .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/giu, '[email removed]')
+      .replace(/(?<!\d)(?:\+?\d[ .()-]*){10,15}(?!\d)/gu, '[phone removed]')
+      .slice(0, 240)
+    : undefined;
+  return {
+    name: typeof error?.name === 'string' ? error.name.slice(0, 100) : 'Error',
+    status: Number.isInteger(error?.status) ? error.status : undefined,
+    code: typeof providerError?.status === 'string'
+      ? providerError.status.slice(0, 100)
+      : typeof error?.code === 'string' ? error.code.slice(0, 100) : undefined,
+    message
+  };
+}
+
 export function createApp({
   production = false,
   origins = production ? [] : DEFAULT_ORIGINS,
@@ -173,11 +199,7 @@ export function createApp({
             requestId: req.requestId,
             method: req.method,
             path: req.path,
-            error: {
-              name: typeof error?.name === 'string' ? error.name.slice(0, 100) : 'Error',
-              status: Number.isInteger(error?.status) ? error.status : undefined,
-              code: typeof error?.code === 'string' ? error.code.slice(0, 100) : undefined
-            }
+            error: sanitizedProviderError(error)
           });
         }
         advice = generateRuleBasedAdvice(input);
