@@ -54,7 +54,7 @@ const SYSTEM_INSTRUCTION = [
 const MAX_IN_FLIGHT = 4;
 const FAILURE_COOLDOWN_MS = 60_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
-const GEMINI_TIMEOUT_MS = 12_000;
+const GEMINI_TIMEOUT_MS = 30_000;
 
 function redactCommonIdentifiers(value) {
   if (typeof value === 'string') {
@@ -109,7 +109,8 @@ export function createGeminiAdvisor({ apiKey, model = 'gemini-3.8-flash', client
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: 'application/json',
           responseJsonSchema: ADVICE_JSON_SCHEMA,
-          maxOutputTokens: 1800,
+          maxOutputTokens: 4096,
+          ...(/^gemini-3[.-]/.test(model) ? { thinkingConfig: { thinkingLevel: 'LOW' } } : {}),
           temperature: 0.25,
           abortSignal
         }
