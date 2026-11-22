@@ -175,6 +175,7 @@ export function createApp({
             path: req.path,
             error: {
               name: typeof error?.name === 'string' ? error.name.slice(0, 100) : 'Error',
+              status: Number.isInteger(error?.status) ? error.status : undefined,
               code: typeof error?.code === 'string' ? error.code.slice(0, 100) : undefined
             }
           });
