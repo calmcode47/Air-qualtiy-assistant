@@ -63,3 +63,27 @@ test('Vercel API proxy fails closed when its shared secret is missing', async ()
   assert.equal(response.statusCode, 503);
   assert.equal(fetchCalled, false);
 });
+
+test('Vercel API proxy resolves the rewritten route from the request URL', async () => {
+  let forwardedUrl;
+  const handler = createProxyHandler({
+    edgeToken: 't'.repeat(40),
+    fetchImpl: async (url) => {
+      forwardedUrl = String(url);
+      return new Response(JSON.stringify({ status: 'ok' }), { status: 200 });
+    }
+  });
+  const request = Readable.from([]);
+  Object.assign(request, {
+    method: 'GET',
+    url: '/api/aura/monitor?lat=0&lon=0',
+    query: { path: ['aura', 'monitor'] },
+    headers: {}
+  });
+  const response = mockResponse();
+
+  await handler(request, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(forwardedUrl, 'https://aura-air-quality-api.onrender.com/api/monitor?lat=0&lon=0');
+});

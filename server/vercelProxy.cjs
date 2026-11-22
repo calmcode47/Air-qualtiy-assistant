@@ -2,6 +2,23 @@ const DEFAULT_RENDER_API_URL = 'https://aura-air-quality-api.onrender.com';
 const MAX_REQUEST_BODY_BYTES = 20 * 1024;
 const ALLOWED_API_PATHS = new Set(['health', 'advice', 'monitor']);
 
+function resolveApiPath(request, incomingUrl) {
+  const pathFromUrl = incomingUrl.pathname.split('/').filter(Boolean);
+  const apiIndex = pathFromUrl.indexOf('api');
+  if (apiIndex >= 0) {
+    const route = pathFromUrl.slice(apiIndex + 1);
+    if (route[0] === 'aura') route.shift();
+    const path = route.join('/');
+    if (ALLOWED_API_PATHS.has(path)) return path;
+  }
+
+  const querySegments = request.query?.path;
+  const route = (Array.isArray(querySegments) ? querySegments : [querySegments])
+    .filter((segment) => typeof segment === 'string' && segment.length > 0)
+    .filter((segment) => segment !== 'api' && segment !== 'aura');
+  return route.join('/');
+}
+
 async function readRequestBody(request) {
   const chunks = [];
   let size = 0;
@@ -27,10 +44,8 @@ function createProxyHandler({
       return response.end(JSON.stringify({ error: 'API proxy is not configured.' }));
     }
 
-    const segments = request.query?.path;
-    const path = (Array.isArray(segments) ? segments : [segments])
-      .filter((segment) => typeof segment === 'string' && segment.length > 0)
-      .join('/');
+    const incomingUrl = new URL(request.url || '/', 'https://vercel.invalid');
+    const path = resolveApiPath(request, incomingUrl);
     if (!ALLOWED_API_PATHS.has(path)) {
       response.statusCode = 404;
       return response.end(JSON.stringify({ error: 'API route not found.' }));
@@ -41,7 +56,6 @@ function createProxyHandler({
       return response.end(JSON.stringify({ error: 'Method not allowed.' }));
     }
 
-    const incomingUrl = new URL(request.url || '/', 'https://vercel.invalid');
     const target = new URL(`/api/${path}`, apiOrigin);
     target.search = incomingUrl.search;
     const headers = new Headers({
