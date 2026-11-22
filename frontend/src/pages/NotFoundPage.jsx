@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, Home, ArrowLeft } from 'lucide-react';
+import { Compass, Home } from 'lucide-react';
 
 export default function NotFoundPage() {
   useEffect(() => {

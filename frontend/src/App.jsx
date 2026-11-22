@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
 // Atmospheric Data Provider Context & Profile Context
 import { AirProvider, useAir } from './context/AirContext';
-import { ProfileProvider, useProfile } from './store/profile';
+import { ProfileProvider } from './store/profile';
 import OnboardingModal from './components/OnboardingModal';
 import MaskGuideModal from './components/MaskGuideModal';
 import GlossaryModal from './components/GlossaryModal';
@@ -25,7 +25,8 @@ import NotFoundPage from './pages/NotFoundPage';
 
 // Route Title Synchronizer (Prompt 8 Task 1)
 function TitleWatcher() {
-  const location = useLocation();
+  const { pathname } = useLocation();
+  const previousPath = useRef(pathname);
 
   useEffect(() => {
     const titles = {
@@ -39,8 +40,13 @@ function TitleWatcher() {
       '/home': 'Aura • Air-Quality Illustration',
       '/sanctuary': 'Aura • Air-Quality Illustration'
     };
-    document.title = titles[location.pathname] || 'Aura — Winter Smog Companion';
-  }, [location]);
+    document.title = titles[pathname] || 'Aura — Winter Smog Companion';
+    if (previousPath.current !== pathname) {
+      previousPath.current = pathname;
+      document.getElementById('main-content')?.focus({ preventScroll: true });
+      window.scrollTo(0, 0);
+    }
+  }, [pathname]);
 
   return null;
 }
@@ -53,22 +59,11 @@ function MainApp() {
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
   const [isShareTodayOpen, setIsShareTodayOpen] = useState(false);
 
-  const {
-    airData,
-    outdoorAqi: liveOutdoorAqi,
-    selectedLocation,
-    selectLocation,
-    isLoading
-  } = useAir();
+  const { airData, outdoorAqi } = useAir();
 
-  // Atmospheric telemetry state
-  const outdoorAqi = liveOutdoorAqi;
   const [fanSpeed, setFanSpeed] = useState('high'); // 'off' | 'low' | 'med' | 'high'
   const [isNightMode, setIsNightMode] = useState(false);
   const [isSoundActive, setIsSoundActive] = useState(false);
-
-  // Household Persona state
-  const [selectedPersonaId, setSelectedPersonaId] = useState('family');
 
   const handleNavigate = (page) => {
     const target =
@@ -80,7 +75,6 @@ function MainApp() {
         ? page
         : `/${page}`;
     navigate(target);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -95,33 +89,19 @@ function MainApp() {
 
       {/* 1. Full-Width Responsive Navbar */}
       <Navbar
-        selectedCity={selectedLocation?.id || 'delhi'}
-        setSelectedCity={selectLocation}
-        cityData={airData}
-        outdoorAqi={outdoorAqi}
         openMaskGuide={() => setIsMaskGuideOpen(true)}
         openGlossary={() => setIsGlossaryOpen(true)}
         openShareToday={() => setIsShareTodayOpen(true)}
       />
 
       {/* 2. Full-Page Content Area with React Router */}
-      <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <Routes>
           <Route
             path="/"
             element={
               <ErrorBoundary>
-                <OverviewPage
-                  cityData={airData}
-                  outdoorAqi={outdoorAqi}
-                  onNavigate={handleNavigate}
-                  selectedPersonaId={selectedPersonaId}
-                  setSelectedPersonaId={setSelectedPersonaId}
-                  fanSpeed={fanSpeed}
-                  setFanSpeed={setFanSpeed}
-                  isNightMode={isNightMode}
-                  setIsNightMode={setIsNightMode}
-                />
+                <OverviewPage onNavigate={handleNavigate} />
               </ErrorBoundary>
             }
           />
@@ -130,7 +110,7 @@ function MainApp() {
             path="/advisor"
             element={
               <ErrorBoundary>
-                <AdvisorPage cityData={airData} outdoorAqi={outdoorAqi} />
+                <AdvisorPage />
               </ErrorBoundary>
             }
           />
@@ -174,8 +154,6 @@ function MainApp() {
             element={
               <ErrorBoundary>
                 <SanctuaryPage
-                  cityData={airData}
-                  outdoorAqi={outdoorAqi}
                   fanSpeed={fanSpeed}
                   setFanSpeed={setFanSpeed}
                   isNightMode={isNightMode}
@@ -230,7 +208,7 @@ function MainApp() {
 export default function App() {
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/health', { signal: controller.signal }).catch(() => {});
+    fetch('/api/health', { signal: controller.signal, cache: 'no-store' }).catch(() => {});
     return () => controller.abort();
   }, []);
 

@@ -10,9 +10,11 @@
     "test": "npm --prefix frontend run test && npm --prefix server test",
     "check:contrast": "node scripts/contrast-check.mjs",
     "start": "node server/index.js --production",
-    "test:e2e": "npm --prefix frontend run test:smoke"
+    "test:e2e": "npm --prefix frontend run test:smoke",
+    "lint": "oxlint --report-unused-disable-directives frontend/src frontend/tests frontend/*.js server shared scripts"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "oxlint": "^1.94.0"
   }
 }

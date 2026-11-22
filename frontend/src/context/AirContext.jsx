@@ -21,13 +21,12 @@ function getInitialLocationData(location) {
     diurnalHourly: [],
     isLive: false,
     isCached: false,
-    isFallback: false,
     descriptor: 'Waiting for live or cached data'
   };
 }
 
 export function AirProvider({ children }) {
-  const [selectedLocation, setSelectedLocation] = useState(() => {
+  const [initialLocation] = useState(() => {
     try {
       const saved = localStorage.getItem('aura_selected_location');
       const location = saved ? JSON.parse(saved) : null;
@@ -35,59 +34,62 @@ export function AirProvider({ children }) {
         return { ...location, lat: Math.round(location.lat * 100) / 100, lon: Math.round(location.lon * 100) / 100 };
       }
       if (location && typeof location.id === 'string' && Number.isFinite(location.lat) && Number.isFinite(location.lon)) return location;
-    } catch (e) {}
+    } catch {}
     return DEFAULT_LOCATIONS.delhi;
   });
 
-  const [airData, setAirData] = useState(() => {
-    return getInitialLocationData(selectedLocation);
-  });
+  const [airData, setAirData] = useState(() => getInitialLocationData(initialLocation));
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
 
-  const latestLocation = useRef(selectedLocation);
+  const latestLocation = useRef(initialLocation);
   const activeRequest = useRef(null);
   const locationAttempt = useRef(0);
 
-  const loadAirData = useCallback(async (location) => {
+  const loadAirData = useCallback((location) => {
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const data = await fetchAirData(location, controller.signal);
-      if (!controller.signal.aborted) setAirData(data);
-    } catch {
-      if (!controller.signal.aborted) {
-        setError('Could not load air-quality data. Check your connection or try another location.');
-      }
-    } finally {
-      if (!controller.signal.aborted) setIsLoading(false);
-    }
+    return fetchAirData(location, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setAirData(data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setError('Could not load air-quality data. Check your connection or try another location.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
   }, []);
 
   useEffect(() => {
-    loadAirData(selectedLocation);
+    loadAirData(initialLocation);
     return () => activeRequest.current?.abort();
-  }, [selectedLocation, loadAirData]);
+  }, [initialLocation, loadAirData]);
+
+  const refresh = useCallback(() => {
+    setIsLoading(true);
+    setError(null);
+    return loadAirData(latestLocation.current);
+  }, [loadAirData]);
 
   const lastReadingAt = airData.timestamp;
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      loadAirData(latestLocation.current);
+      refresh();
     };
     const handleOffline = () => {
       setIsOffline(true);
-      loadAirData(latestLocation.current);
+      refresh();
     };
     const refreshIfOlder = () => {
       if (!document.hidden && navigator.onLine && Date.now() - (lastReadingAt || 0) >= 30 * 60 * 1000) {
-        loadAirData(latestLocation.current);
+        refresh();
       }
     };
     window.addEventListener('online', handleOnline);
@@ -100,27 +102,26 @@ export function AirProvider({ children }) {
       document.removeEventListener('visibilitychange', refreshIfOlder);
       window.clearInterval(timer);
     };
-  }, [lastReadingAt, loadAirData]);
+  }, [lastReadingAt, refresh]);
 
   const selectLocation = useCallback((locationOrKey) => {
     const location = typeof locationOrKey === 'string' ? DEFAULT_LOCATIONS[locationOrKey] : locationOrKey;
     if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lon)) return;
     locationAttempt.current += 1;
     if (latestLocation.current.id === location.id) {
-      loadAirData(latestLocation.current);
+      refresh();
       return;
     }
 
-    activeRequest.current?.abort();
     latestLocation.current = location;
     setAirData(getInitialLocationData(location));
-    setSelectedLocation(location);
+    refresh();
     try {
       localStorage.setItem('aura_selected_location', JSON.stringify(location));
     } catch {}
-  }, [loadAirData]);
+  }, [refresh]);
 
-  const useCurrentLocation = useCallback(() => {
+  const requestCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser.');
       return;
@@ -147,7 +148,6 @@ export function AirProvider({ children }) {
   return (
     <AirContext.Provider
       value={{
-        selectedLocation,
         airData,
         outdoorAqi: airData?.aqi ?? null,
         isLoading,
@@ -155,13 +155,10 @@ export function AirProvider({ children }) {
         isOffline,
         isStale: Boolean(airData?.isCached && airData?.staleHours >= 2),
         isCached: Boolean(airData?.isCached),
-        isFallback: Boolean(airData?.isFallback),
         staleHours: airData?.staleHours || 0,
         selectLocation,
         searchLocations,
-        useCurrentLocation,
-        refresh: () => loadAirData(selectedLocation),
-        quickLocations: DEFAULT_LOCATIONS
+        requestCurrentLocation
       }}
     >
       {children}

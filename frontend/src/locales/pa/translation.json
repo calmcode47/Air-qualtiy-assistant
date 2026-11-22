@@ -122,5 +122,73 @@
     "greener_swaps_title": "ਤੁਹਾਡੇ ਪਰਿਵਾਰ ਲਈ ਸਾਫ਼ ਅਤੇ ਬਿਹਤਰ ਵਿਕਲਪ",
     "greener_swaps_subtitle": "ਘਰੇਲੂ ਚੋਣਾਂ, ਉਨ੍ਹਾਂ ਦੇ ਸੰਭਾਵੀ ਅਸਰ, ਧਾਰਨਾਵਾਂ ਅਤੇ ਹੱਦਾਂ",
     "open_ledger": "ਵਿਕਲਪ ਲੇਜ਼ਰ ਖੋਲ੍ਹੋ"
+  },
+  "onboarding": {
+    "progress": "ਕਦਮ {{current}} / {{total}}",
+    "skip": "ਹੁਣੇ ਛੱਡੋ",
+    "back": "ਪਿੱਛੇ",
+    "continue": "ਅੱਗੇ ਵਧੋ",
+    "save": "ਪਰਿਵਾਰ ਦੀ ਪ੍ਰੋਫ਼ਾਈਲ ਸੰਭਾਲੋ",
+    "add": "{{label}} ਦੀ ਗਿਣਤੀ ਵਧਾਓ",
+    "remove": "{{label}} ਦੀ ਗਿਣਤੀ ਘਟਾਓ",
+    "conditionsLabel": "ਪਰਿਵਾਰ ਦੇ ਮੈਂਬਰਾਂ ਦੀਆਂ ਸਿਹਤ ਸਥਿਤੀਆਂ",
+    "steps": {
+      "people": "ਤੁਹਾਡੇ ਘਰ ਵਿੱਚ ਕੌਣ ਰਹਿੰਦਾ ਹੈ?",
+      "home": "ਘਰ ਅਤੇ ਰੋਜ਼ ਦਾ ਆਉਣਾ-ਜਾਣਾ",
+      "equipment": "ਸਾਜ਼ੋ-ਸਾਮਾਨ, ਬਜਟ ਅਤੇ ਭਾਸ਼ਾ"
+    },
+    "people": {
+      "adults": "ਬਾਲਗ",
+      "children": "ਬੱਚੇ",
+      "elderly": "ਬਜ਼ੁਰਗ"
+    },
+    "conditions": {
+      "asthma": "ਦਮਾ ਜਾਂ ਪੁਰਾਣੀ ਬ੍ਰੌਂਕਾਈਟਿਸ",
+      "heart": "ਦਿਲ ਦੀ ਬਿਮਾਰੀ",
+      "pregnancy": "ਗਰਭ ਅਵਸਥਾ"
+    },
+    "fields": {
+      "homeType": {
+        "label": "ਘਰ ਦੀ ਕਿਸਮ",
+        "apartment": "ਫ਼ਲੈਟ",
+        "independent_house": "ਵੱਖਰਾ ਮਕਾਨ",
+        "floor": "ਵੱਖਰੀ ਮੰਜ਼ਿਲ",
+        "informal": "ਗ਼ੈਰ-ਰਸਮੀ ਰਿਹਾਇਸ਼"
+      },
+      "commute": {
+        "label": "ਆਉਣ-ਜਾਣ ਦਾ ਮੁੱਖ ਸਾਧਨ",
+        "two_wheeler": "ਮੋਟਰਸਾਈਕਲ ਜਾਂ ਸਕੂਟਰ",
+        "bus_metro": "ਬੱਸ ਜਾਂ ਮੈਟਰੋ",
+        "car": "ਕਾਰ",
+        "walk": "ਪੈਦਲ",
+        "cycle": "ਸਾਈਕਲ",
+        "wfh": "ਘਰੋਂ ਕੰਮ"
+      },
+      "cookingFuel": {
+        "label": "ਖਾਣਾ ਪਕਾਉਣ ਦਾ ਬਾਲਣ",
+        "lpg": "ਐੱਲਪੀਜੀ",
+        "piped_gas": "ਪਾਈਪ ਰਾਹੀਂ ਕੁਦਰਤੀ ਗੈਸ",
+        "electric_induction": "ਬਿਜਲੀ ਜਾਂ ਇੰਡਕਸ਼ਨ",
+        "biomass_wood": "ਲੱਕੜ ਜਾਂ ਹੋਰ ਜੈਵਿਕ ਬਾਲਣ"
+      },
+      "purifierOwned": {
+        "label": "ਘਰ ਵਿੱਚ ਏਅਰ ਪਿਊਰੀਫ਼ਾਇਰ",
+        "none": "ਕੋਈ ਨਹੀਂ",
+        "diy": "ਘਰ ਵਿੱਚ ਬਣਾਇਆ ਏਅਰ ਪਿਊਰੀਫ਼ਾਇਰ",
+        "portable": "ਪੋਰਟੇਬਲ ਏਅਰ ਪਿਊਰੀਫ਼ਾਇਰ"
+      },
+      "monthlyBudgetBand": {
+        "label": "ਸਾਫ਼ ਹਵਾ ਲਈ ਬਜਟ",
+        "low": "ਘੱਟ",
+        "medium": "ਦਰਮਿਆਨਾ",
+        "high": "ਲੋੜ ਅਨੁਸਾਰ"
+      },
+      "preferredLanguage": {
+        "label": "ਇੰਟਰਫੇਸ ਦੀ ਭਾਸ਼ਾ",
+        "en": "English",
+        "hi": "हिंदी",
+        "pa": "ਪੰਜਾਬੀ"
+      }
+    }
   }
 }

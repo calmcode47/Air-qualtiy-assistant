@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 export const DEFAULT_PROFILE = {
   location: 'Delhi NCR',
@@ -83,29 +83,73 @@ export const PERSONA_PRESETS = {
   }
 };
 
+const CHOICES = {
+  commute: ['walk', 'cycle', 'two_wheeler', 'car', 'bus_metro', 'wfh'],
+  cookingFuel: ['lpg', 'electric_induction', 'piped_gas', 'biomass_wood'],
+  homeType: ['apartment', 'independent_house', 'floor', 'informal'],
+  purifierOwned: ['none', 'portable', 'diy'],
+  monthlyBudgetBand: ['low', 'medium', 'high'],
+  preferredLanguage: ['en', 'hi', 'pa']
+};
+const CONDITION_IDS = ['asthma', 'heart', 'pregnancy'];
+const PROFILE_STORAGE_KEY = 'aura_household_profile';
+
+function normalizeIndoorReading(value) {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null;
+  const reading = Number(value);
+  return Number.isFinite(reading) && reading >= 0 && reading <= 5000 ? reading : null;
+}
+
+function normalizeProfile(saved) {
+  const profile = { ...DEFAULT_PROFILE, ...saved };
+  if (typeof profile.commute === 'object') profile.commute = profile.commute?.mode;
+  if (profile.cookingFuel === 'kerosene') profile.cookingFuel = 'biomass_wood';
+  for (const [field, choices] of Object.entries(CHOICES)) {
+    if (!choices.includes(profile[field])) profile[field] = DEFAULT_PROFILE[field];
+  }
+  for (const field of ['adults', 'children', 'elderly']) {
+    if (!Number.isInteger(profile[field]) || profile[field] < 0 || profile[field] > 20) {
+      profile[field] = DEFAULT_PROFILE[field];
+    }
+  }
+  profile.conditions = Array.isArray(profile.conditions)
+    ? CONDITION_IDS.filter((condition) => profile.conditions.includes(condition))
+    : DEFAULT_PROFILE.conditions;
+  profile.calibratedIndoorPm25 = normalizeIndoorReading(profile.calibratedIndoorPm25);
+  return profile;
+}
+
+export function findMatchingPreset(profile) {
+  return Object.values(PERSONA_PRESETS).find(({ id: _id, title: _title, conditions, ...traits }) => (
+    conditions.length === profile.conditions.length
+    && conditions.every((condition) => profile.conditions.includes(condition))
+    && Object.entries(traits).every(([field, value]) => profile[field] === value)
+  ))?.id;
+}
+
 const ProfileContext = createContext(null);
 
 export function ProfileProvider({ children }) {
   const [profile, setProfile] = useState(() => {
     try {
-      const saved = localStorage.getItem('aura_household_profile');
-      if (saved) return { ...DEFAULT_PROFILE, ...JSON.parse(saved) };
-    } catch (e) {}
-    return DEFAULT_PROFILE;
-  });
-
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
-    try {
-      return localStorage.getItem('aura_onboarding_completed') === 'true';
-    } catch (e) {
-      return false;
+      return normalizeProfile(JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY)));
+    } catch {
+      return DEFAULT_PROFILE;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    } catch {
+      // The current session can still use the in-memory profile.
+    }
+  }, [profile]);
 
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => {
     try {
       return localStorage.getItem('aura_onboarding_completed') !== 'true';
-    } catch (e) {
+    } catch {
       return false;
     }
   });
@@ -114,7 +158,7 @@ export function ProfileProvider({ children }) {
     try {
       const saved = localStorage.getItem('aura_simple_mode');
       if (saved !== null) return saved === 'true';
-    } catch (e) {}
+    } catch {}
     return true; // on by default for first-time users
   });
 
@@ -123,20 +167,13 @@ export function ProfileProvider({ children }) {
       const next = !prev;
       try {
         localStorage.setItem('aura_simple_mode', String(next));
-      } catch (e) {}
+      } catch {}
       return next;
     });
   }, []);
 
-  // Persist profile to localStorage
   const updateProfile = useCallback((fields) => {
-    setProfile((prev) => {
-      const updated = { ...prev, ...fields };
-      try {
-        localStorage.setItem('aura_household_profile', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    setProfile((previous) => ({ ...previous, ...fields }));
   }, []);
 
   // Apply a preset persona to the profile
@@ -149,9 +186,7 @@ export function ProfileProvider({ children }) {
 
   // Calibrate indoor reading with user's own monitor
   const calibrateIndoor = useCallback((pm25Val) => {
-    const parsed = pm25Val != null && String(pm25Val).trim() !== '' ? Number(pm25Val) : NaN;
-    const num = Number.isFinite(parsed) && parsed >= 0 && parsed <= 5000 ? parsed : null;
-    updateProfile({ calibratedIndoorPm25: num });
+    updateProfile({ calibratedIndoorPm25: normalizeIndoorReading(pm25Val) });
   }, [updateProfile]);
 
   const resetCalibration = useCallback(() => {
@@ -160,14 +195,11 @@ export function ProfileProvider({ children }) {
 
   // Complete onboarding
   const completeOnboarding = useCallback(() => {
-    setHasCompletedOnboarding(true);
     setIsOnboardingOpen(false);
     try {
       localStorage.setItem('aura_onboarding_completed', 'true');
-    } catch (e) {}
+    } catch {}
   }, []);
-
-  const totalHouseholdMembers = (profile.adults || 0) + (profile.children || 0) + (profile.elderly || 0);
 
   return React.createElement(
     ProfileContext.Provider,
@@ -178,15 +210,11 @@ export function ProfileProvider({ children }) {
         applyPreset,
         calibrateIndoor,
         resetCalibration,
-        hasCompletedOnboarding,
         isOnboardingOpen,
         setIsOnboardingOpen,
         completeOnboarding,
         isSimpleMode,
-        setIsSimpleMode,
-        toggleSimpleMode,
-        totalHouseholdMembers: Math.max(1, totalHouseholdMembers),
-        presets: PERSONA_PRESETS
+        toggleSimpleMode
       }
     },
     children

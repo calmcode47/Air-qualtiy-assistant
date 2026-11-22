@@ -2,15 +2,8 @@ import React from 'react';
 import GenAIAssistant from '../components/GenAIAssistant';
 import { useAir } from '../context/AirContext';
 
-export default function AdvisorPage({ cityData: propCityData, outdoorAqi: propOutdoorAqi }) {
-  let airContext;
-  try {
-    airContext = useAir();
-  } catch (e) {
-    airContext = null;
-  }
-  const cityData = airContext?.airData || propCityData;
-  const outdoorAqi = airContext?.outdoorAqi ?? propOutdoorAqi;
+export default function AdvisorPage() {
+  const { airData: cityData, outdoorAqi } = useAir();
   return (
     <div className="space-y-8">
       {/* Page Header */}

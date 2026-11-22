@@ -122,5 +122,73 @@
     "greener_swaps_title": "Greener Swaps for Your Household",
     "greener_swaps_subtitle": "Household choices and their possible effects, with assumptions and limitations",
     "open_ledger": "Open Choices Ledger"
+  },
+  "onboarding": {
+    "progress": "Step {{current}} of {{total}}",
+    "skip": "Skip for now",
+    "back": "Back",
+    "continue": "Continue",
+    "save": "Save household profile",
+    "add": "Add {{label}}",
+    "remove": "Remove {{label}}",
+    "conditionsLabel": "Health conditions in your household",
+    "steps": {
+      "people": "Who lives in your home?",
+      "home": "Home and daily commute",
+      "equipment": "Equipment, budget, and language"
+    },
+    "people": {
+      "adults": "Adults",
+      "children": "Children",
+      "elderly": "Older adults"
+    },
+    "conditions": {
+      "asthma": "Asthma or chronic bronchitis",
+      "heart": "Heart condition",
+      "pregnancy": "Pregnancy"
+    },
+    "fields": {
+      "homeType": {
+        "label": "Home type",
+        "apartment": "Apartment",
+        "independent_house": "Detached house",
+        "floor": "Independent floor",
+        "informal": "Informal dwelling"
+      },
+      "commute": {
+        "label": "Main way of commuting",
+        "two_wheeler": "Motorcycle or scooter",
+        "bus_metro": "Bus or metro",
+        "car": "Car",
+        "walk": "On foot",
+        "cycle": "Bicycle",
+        "wfh": "Work from home"
+      },
+      "cookingFuel": {
+        "label": "Cooking fuel",
+        "lpg": "LPG",
+        "piped_gas": "Piped natural gas",
+        "electric_induction": "Electric or induction",
+        "biomass_wood": "Wood or other biomass"
+      },
+      "purifierOwned": {
+        "label": "Air purifier at home",
+        "none": "None",
+        "diy": "DIY air purifier",
+        "portable": "Portable air purifier"
+      },
+      "monthlyBudgetBand": {
+        "label": "Clean-air budget",
+        "low": "Low",
+        "medium": "Moderate",
+        "high": "Flexible"
+      },
+      "preferredLanguage": {
+        "label": "Interface language",
+        "en": "English",
+        "hi": "हिंदी",
+        "pa": "ਪੰਜਾਬੀ"
+      }
+    }
   }
 }

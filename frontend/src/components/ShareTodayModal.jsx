@@ -1,18 +1,27 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Share2, Download, Check, X, Copy, Image as ImageIcon } from 'lucide-react';
+import React, { useId, useRef, useState, useEffect, useMemo } from 'react';
+import Modal from './Modal';
+import { Share2, Download, X, Copy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { drawShareCard } from '../utils/drawShareCard';
+
+const EMPTY_PLAN = [];
+const DEFAULT_ACTIONS = [
+  'Check local air-quality advice before strenuous outdoor activity',
+  'Reduce indoor particle sources and use suitable mechanical filtration if available',
+  'Combine errands or share trips when practical; avoid idling'
+];
 
 export default function ShareTodayModal({
   isOpen,
   onClose,
   cityData = {},
   outdoorAqi = null,
-  actionPlan = []
+  actionPlan = EMPTY_PLAN
 }) {
-  const { t, i18n } = useTranslation();
+  const titleId = useId();
+  const { i18n } = useTranslation();
   const canvasRef = useRef(null);
-  const [dataUrl, setDataUrl] = useState('');
-  const [isCopied, setIsCopied] = useState(false);
+  const [feedback, setFeedback] = useState('');
   const [isSharing, setIsSharing] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('3:4'); // '3:4' (1080x1440) or '9:16' (1080x1920)
 
@@ -28,15 +37,10 @@ export default function ShareTodayModal({
     ? cityData.cleanestWindow
     : 'No live lower-pollution forecast available';
 
-  const defaultActions = [
-    'Check local air-quality advice before strenuous outdoor activity',
-    'Reduce indoor particle sources and use suitable mechanical filtration if available',
-    'Combine errands or share trips when practical; avoid idling'
-  ];
-
-  const actions = actionPlan?.length > 0
-    ? actionPlan.slice(0, 3).map((a) => a.title || a.instruction || a)
-    : defaultActions;
+  const actions = useMemo(() => {
+    const titles = actionPlan.slice(0, 3).map((action) => action.title || action.instruction || action);
+    return titles.length ? titles : DEFAULT_ACTIONS;
+  }, [actionPlan]);
 
   // Render canvas card when opened or aspect ratio toggled
   useEffect(() => {
@@ -45,173 +49,82 @@ export default function ShareTodayModal({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    const width = 1080;
-    const isStory = aspectRatio === '9:16';
-    const height = isStory ? 1920 : 1440;
-
-    canvas.width = width;
-    canvas.height = height;
-
-    // 1. Background
-    ctx.fillStyle = '#18261F';
-    ctx.fillRect(0, 0, width, height);
-
-    // Subtle atmospheric ambient radial gradients
-    const grad1 = ctx.createRadialGradient(width / 2, isStory ? 340 : 260, 50, width / 2, isStory ? 340 : 260, isStory ? 600 : 480);
-    grad1.addColorStop(0, 'rgba(169, 74, 40, 0.22)');
-    grad1.addColorStop(1, 'rgba(24, 38, 31, 0)');
-    ctx.fillStyle = grad1;
-    ctx.fillRect(0, 0, width, height);
-
-    // 2. Top Header Brand
-    ctx.fillStyle = '#FAF8F4';
-    ctx.font = 'bold 36px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('AURA • AIR QUALITY UPDATE', 80, isStory ? 130 : 110);
-
-    const todayStr = new Date().toLocaleDateString(i18n.language || 'en-US', {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
+    drawShareCard(canvas, {
+      cityName, outdoorAqi, category, aqiSystem, readingNote, lowerWindow, actions, aspectRatio,
+      language: i18n.resolvedLanguage
     });
-    ctx.fillStyle = '#A6BCB0';
-    ctx.font = '26px sans-serif';
-    ctx.fillText(`${cityName} • ${todayStr}`, 80, isStory ? 180 : 155);
-
-    // 3. AQI Hero Card
-    const heroY = isStory ? 230 : 200;
-    const heroH = isStory ? 310 : 280;
-    ctx.fillStyle = '#22332A';
-    roundRect(ctx, 80, heroY, width - 160, heroH, 24);
-    ctx.fill();
-    ctx.strokeStyle = '#32473B';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // AQI Number
-    ctx.fillStyle = '#F3C474';
-    ctx.font = 'bold 120px monospace';
-    ctx.fillText(outdoorAqi == null ? '—' : String(outdoorAqi), 130, heroY + 160);
-
-    // Index scale and data currency
-    ctx.fillStyle = '#FAF8F4';
-    ctx.font = 'bold 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Gurmukhi", sans-serif';
-    wrapText(ctx, `${aqiSystem}: ${category}`, 420, heroY + 100, width - 560, 38, 2);
-
-    ctx.fillStyle = '#D8E4DC';
-    ctx.font = '26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Gurmukhi", sans-serif';
-    ctx.fillText(readingNote, 420, heroY + 160);
-    ctx.fillText(`Lower forecast period: ${lowerWindow}`, 420, heroY + 210);
-
-    // 4. Action Plan Section
-    const actionsHeadingY = isStory ? 600 : 540;
-    ctx.fillStyle = '#FAF8F4';
-    ctx.font = 'bold 36px serif';
-    ctx.fillText('Practical actions to consider:', 80, actionsHeadingY);
-
-    // Action Items
-    const cardSpacing = isStory ? 320 : 230;
-    const cardHeight = isStory ? 280 : 195;
-    const cardStartY = actionsHeadingY + 40;
-
-    actions.forEach((act, idx) => {
-      const cardY = cardStartY + idx * cardSpacing;
-
-      // Card Background
-      ctx.fillStyle = '#FAF7F2';
-      roundRect(ctx, 80, cardY, width - 160, cardHeight, 20);
-      ctx.fill();
-
-      // Number Badge
-      ctx.fillStyle = '#18261F';
-      roundRect(ctx, 115, cardY + 35, 50, 50, 12);
-      ctx.fill();
-      ctx.fillStyle = '#FAF8F4';
-      ctx.font = 'bold 28px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(String(idx + 1), 140, cardY + 70);
-
-      // Text Action with multilingual safe word wrap
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#18261F';
-      ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Gurmukhi", sans-serif';
-      wrapText(ctx, act, 195, cardY + 65, width - 340, 42, isStory ? 4 : 3);
-    });
-
-    // 5. Footer Branding & Disclaimer
-    const footerY1 = isStory ? 1800 : 1340;
-    const footerY2 = isStory ? 1845 : 1380;
-    ctx.fillStyle = '#A6BCB0';
-    ctx.font = '24px sans-serif';
-    ctx.fillText('Generated by Aura — Open Science Winter Smog Companion', 80, footerY1);
-    ctx.fillStyle = '#8AB394';
-    ctx.font = '20px sans-serif';
-    ctx.fillText('Educational information · check current local guidance', 80, footerY2);
-
-    try {
-      setDataUrl(canvas.toDataURL('image/png'));
-    } catch (e) {}
-  }, [isOpen, cityName, outdoorAqi, category, aqiSystem, readingNote, lowerWindow, actions, aspectRatio, i18n.language]);
+  }, [isOpen, cityName, outdoorAqi, category, aqiSystem, readingNote, lowerWindow, actions, aspectRatio, i18n.resolvedLanguage]);
 
   if (!isOpen) return null;
 
-  const handleShare = async () => {
-    setIsSharing(true);
-    const summaryText = `Air-quality update for ${cityName}: ${aqiSystem} ${outdoorAqi == null ? 'unavailable' : outdoorAqi} (${category}). ${readingNote}. Lower forecast period: ${lowerWindow}. Check current local advice before making time-sensitive decisions.`;
+  const title = `Aura air-quality update for ${cityName}`;
+  const filename = `aura-air-status-${cityName.toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, '-')}.png`;
+  const summary = [
+    `${title}. ${aqiSystem} ${outdoorAqi ?? 'unavailable'} (${category}).`,
+    readingNote,
+    `Lower forecast period: ${lowerWindow}.`,
+    ...actions.map((action, index) => `${index + 1}. ${action}`),
+    'Educational information from Aura. Check current local guidance for time-sensitive decisions.'
+  ].join('\n');
 
+  function close() {
+    setFeedback('');
+    onClose();
+  }
+
+  function download() {
+    const image = canvasRef.current.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = image;
+    link.click();
+  }
+
+  function handleDownload() {
     try {
-      const canvas = canvasRef.current;
-      if (canvas && navigator.share && navigator.canShare) {
-        canvas.toBlob(async (blob) => {
-          if (!blob) return;
-          const file = new File([blob], `aura-air-status-${cityName.toLowerCase().replace(/\s+/g, '-')}.png`, {
-            type: 'image/png'
-          });
+      download();
+      setFeedback('');
+    } catch {
+      setFeedback('The image could not be saved. Try copying the text summary.');
+    }
+  }
 
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              title: `Aura — Air Quality Status for ${cityName}`,
-              text: summaryText,
-              files: [file]
-            });
-            return;
-          }
-        });
-      } else if (navigator.share) {
-        await navigator.share({
-          title: `Aura — Air Quality Status for ${cityName}`,
-          text: summaryText
-        });
-      } else {
-        handleDownload();
-      }
-    } catch (e) {
+  async function handleShare() {
+    if (!navigator.share) {
       handleDownload();
+      return;
+    }
+    setIsSharing(true);
+    setFeedback('');
+    try {
+      const data = { title, text: summary };
+      if (navigator.canShare) {
+        const encoded = canvasRef.current.toDataURL('image/png').split(',')[1];
+        const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+        const file = new File([bytes], filename, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) data.files = [file];
+      }
+      await navigator.share(data);
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        setFeedback('Sharing is unavailable. You can save the image or copy the text summary.');
+      }
     } finally {
       setIsSharing(false);
     }
-  };
+  }
 
-  const handleDownload = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const a = document.createElement('a');
-    a.download = `aura-air-status-${cityName.toLowerCase().replace(/\s+/g, '-')}.png`;
-    a.href = canvas.toDataURL('image/png');
-    a.click();
-  };
-
-  const handleCopyText = () => {
-    const text = `Air-quality update for ${cityName}: ${aqiSystem} ${outdoorAqi == null ? 'unavailable' : outdoorAqi} (${category}).\n${readingNote}.\nLower forecast period: ${lowerWindow}.\n1. ${actions[0]}\n2. ${actions[1]}\n3. ${actions[2]}\nEducational information from Aura; check current local advice.`;
-    navigator.clipboard?.writeText(text);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
+  async function handleCopyText() {
+    try {
+      await navigator.clipboard.writeText(summary);
+      setFeedback('Summary copied to clipboard.');
+    } catch {
+      setFeedback('Clipboard access is unavailable. You can save the image instead.');
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+    <Modal labelledBy={titleId} onClose={close} overlayClassName="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
       <div className="bg-[#FAF7F2] rounded-3xl border border-[#DDD5C7] max-w-lg w-full p-6 paper-shadow max-h-[92vh] overflow-y-auto space-y-5">
         
         {/* Header */}
@@ -221,7 +134,7 @@ export default function ShareTodayModal({
               <Share2 className="w-4 h-4 text-[#8AB394]" />
             </div>
             <div>
-              <h3 className="text-base font-bold font-serif-natural text-[#18261F]">
+              <h3 id={titleId} className="text-base font-bold font-serif-natural text-[#18261F]">
                 Share Today's Air Status
               </h3>
               <p className="text-[11px] text-[#56685F]">
@@ -230,8 +143,9 @@ export default function ShareTodayModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-1 rounded-full hover:bg-[#EAE4D8] text-[#56685F] transition"
+            data-initial-focus
             aria-label="Close share dialog"
           >
             <X className="w-5 h-5" />
@@ -242,6 +156,7 @@ export default function ShareTodayModal({
         <div className="flex items-center justify-between gap-2 bg-[#EFECE3] p-1 rounded-2xl border border-[#DFD8CC] text-xs">
           <button
             type="button"
+            aria-pressed={aspectRatio === '3:4'}
             data-testid="share-ratio-3-4"
             onClick={() => setAspectRatio('3:4')}
             className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
@@ -254,6 +169,7 @@ export default function ShareTodayModal({
           </button>
           <button
             type="button"
+            aria-pressed={aspectRatio === '9:16'}
             data-testid="share-ratio-9-16"
             onClick={() => setAspectRatio('9:16')}
             className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition flex items-center justify-center gap-1.5 ${
@@ -269,6 +185,8 @@ export default function ShareTodayModal({
         {/* Canvas Card Preview */}
         <div className="relative rounded-2xl overflow-hidden border border-[#DFD8CC] shadow-inner bg-[#18261F] flex items-center justify-center">
           <canvas
+            aria-label={title}
+            role="img"
             ref={canvasRef}
             className="w-full h-auto max-h-[420px] object-contain rounded-2xl block"
           />
@@ -302,59 +220,12 @@ export default function ShareTodayModal({
             onClick={handleCopyText}
             className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-[#EFECE3] hover:bg-[#E4DFD3] text-[#56685F] transition flex items-center justify-center gap-1.5"
           >
-            {isCopied ? <Check className="w-3.5 h-3.5 text-[#3D6B56]" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{isCopied ? 'Summary copied to clipboard!' : 'Copy text summary'}</span>
+            <Copy aria-hidden="true" className="w-3.5 h-3.5" />
+            <span>Copy text summary</span>
           </button>
+          <p role="status" className="text-xs text-[#56685F]">{feedback}</p>
         </div>
-
       </div>
-    </div>
+    </Modal>
   );
-}
-
-// Canvas helper functions
-function roundRect(ctx, x, y, width, height, radius) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-}
-
-function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
-  if (!text) return;
-  const words = String(text).split(/\s+/);
-  let line = "";
-  let lineCount = 0;
-
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line ? line + " " + words[n] : words[n];
-    const metrics = ctx.measureText(testLine);
-    if (metrics.width > maxWidth && line) {
-      ctx.fillText(line, x, y);
-      line = words[n];
-      y += lineHeight;
-      lineCount++;
-      if (lineCount >= maxLines - 1 && n < words.length - 1) {
-        let remaining = line;
-        while (n + 1 < words.length && ctx.measureText(remaining + " " + words[n + 1] + "...").width <= maxWidth) {
-          n++;
-          remaining += " " + words[n];
-        }
-        ctx.fillText(remaining + "...", x, y);
-        return;
-      }
-    } else {
-      line = testLine;
-    }
-  }
-  if (line) {
-    ctx.fillText(line, x, y);
-  }
 }

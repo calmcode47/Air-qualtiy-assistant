@@ -4,6 +4,13 @@ import enTranslation from './locales/en/translation.json';
 import hiTranslation from './locales/hi/translation.json';
 import paTranslation from './locales/pa/translation.json';
 
+function leafKeys(bundle, prefix = '') {
+  return Object.entries(bundle).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    return typeof value === 'string' ? [path] : leafKeys(value, path);
+  }).sort();
+}
+
 describe('i18n internationalization and locale bundle tests', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en');
@@ -33,21 +40,10 @@ describe('i18n internationalization and locale bundle tests', () => {
     expect(i18n.t('mask_guide.nav_link')).toContain('ਰੈਸਪੀਰੇਟਰ');
   });
 
-  it('verifies essential parity between EN, HI, and PA locale keys', () => {
-    const enKeys = Object.keys(enTranslation);
-    const hiKeys = Object.keys(hiTranslation);
-    const paKeys = Object.keys(paTranslation);
-
-    expect(hiKeys).toEqual(expect.arrayContaining(enKeys));
-    expect(paKeys).toEqual(expect.arrayContaining(enKeys));
-
-    // Check specific subkeys
-    expect(Object.keys(hiTranslation.hero)).toEqual(Object.keys(enTranslation.hero));
-    expect(Object.keys(paTranslation.hero)).toEqual(Object.keys(enTranslation.hero));
-    expect(Object.keys(hiTranslation.mask_guide)).toEqual(Object.keys(enTranslation.mask_guide));
-    expect(Object.keys(paTranslation.glossary)).toEqual(Object.keys(enTranslation.glossary));
-    expect(Object.keys(hiTranslation.ledger)).toEqual(Object.keys(enTranslation.ledger));
-    expect(Object.keys(paTranslation.ledger)).toEqual(Object.keys(enTranslation.ledger));
+  it('keeps all nested locale keys in sync', () => {
+    const english = leafKeys(enTranslation);
+    expect(leafKeys(hiTranslation)).toEqual(english);
+    expect(leafKeys(paTranslation)).toEqual(english);
   });
 
   it('interpolates dynamic variables in all languages', async () => {

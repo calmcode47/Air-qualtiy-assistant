@@ -13,7 +13,7 @@ export default defineConfig({
   webServer: {
     command: 'npm --prefix .. run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     env: { VITE_USE_MOCK: 'true' },
     timeout: 30000
   },
@@ -21,8 +21,7 @@ export default defineConfig({
     {
       name: 'Mobile (390px)',
       use: {
-        viewport: { width: 390, height: 844 },
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'
+        viewport: { width: 390, height: 844 }
       }
     },
     {

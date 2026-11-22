@@ -1,0 +1,245 @@
+.winter-smog-model-container {
+  --bg: #f3f3f1;
+  --fg: #14161b;
+  --mute: #56685F;
+  --line: #d9d9d5;
+  --panel: #fbfbfa;
+  background-color: var(--bg);
+  padding: 16px;
+  border-radius: 16px;
+  font-family: Barlow, system-ui, sans-serif;
+  container-type: inline-size;
+}
+.winter-smog-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.winter-smog-hd h2 {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: 2px;
+  margin: 0;
+  line-height: 1;
+  color: var(--fg);
+}
+.winter-smog-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 14px;
+}
+@container (max-width: 860px) {
+  .winter-smog-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 860px) {
+  .winter-smog-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.winter-smog-stage {
+  position: relative;
+  width: 100%;
+  min-height: 380px;
+  background: #0a0c10;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.winter-smog-model-container.fill-height {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.winter-smog-stage.fill-height {
+  height: 100% !important;
+  min-height: 100% !important;
+  flex: 1 1 0%;
+}
+.winter-smog-stage.no-border {
+  border: none;
+  border-radius: inherit;
+}
+.winter-smog-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.winter-smog-quick-pur {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(14, 17, 23, 0.85);
+  color: #cfd3da;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+.winter-smog-quick-pur:hover {
+  background: rgba(26, 32, 42, 0.95);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+.winter-smog-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6c7079;
+  transition: all 0.2s ease;
+}
+.winter-smog-dot.active {
+  background: #4fc3ff;
+  box-shadow: 0 0 8px #4fc3ff;
+}
+.winter-smog-lb {
+  position: absolute;
+  pointer-events: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: #cfd3da;
+  white-space: nowrap;
+  transform: translate(10px, -50%);
+  padding: 2px 6px 2px 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  line-height: 1.5;
+  cursor: default;
+  border-radius: 2px;
+}
+.winter-smog-lb:focus-visible {
+  outline: 2px solid #F3C474;
+  outline-offset: 3px;
+  background: rgba(20, 24, 34, 0.85);
+}
+.winter-smog-lb b {
+  display: block;
+  font-weight: 400;
+  color: #8b909a;
+}
+.winter-smog-lb:before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: #fff;
+}
+.winter-smog-hint {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #6f7580;
+  pointer-events: none;
+}
+.winter-smog-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.winter-smog-k {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--mute);
+}
+.winter-smog-aqi-n {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 84px;
+  line-height: 0.9;
+}
+.winter-smog-band {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.winter-smog-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.winter-smog-row span:first-child {
+  font-size: 13px;
+  color: var(--mute);
+}
+.winter-smog-row span:last-child {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+}
+.winter-smog-tip {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.winter-smog-panel input[type=range] {
+  width: 100%;
+  accent-color: var(--fg);
+  background: #D8D1C4;
+  cursor: pointer;
+}
+.winter-smog-sw {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  cursor: pointer;
+}
+.winter-smog-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.winter-smog-chips button {
+  font: inherit;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 9px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.winter-smog-chips button:hover {
+  border-color: var(--fg);
+  background: rgba(0,0,0,0.03);
+}
+.winter-smog-chips button.active-chip {
+  background: var(--fg);
+  color: #ffffff;
+  border-color: var(--fg);
+}
+.winter-smog-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--mute);
+}

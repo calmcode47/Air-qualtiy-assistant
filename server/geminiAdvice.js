@@ -52,7 +52,8 @@ export function constructUserMessage({ message, airData = {}, profile = null, hi
   const { name, aqi, pm25, category, isLive, isCached, staleHours, cleanestWindow, cleanestWindowPeakAqi } = airData;
   const sensitive = isSensitiveHousehold(profile || {});
   const context = {
-    air_data: { name: name && redactPersonalDetails(name), aqi, pm25, category, isLive, isCached, staleHours, cleanestWindow, cleanestWindowPeakAqi },
+    air_data: { name: name && redactPersonalDetails(name), aqi, pm25, category, isLive, isCached, staleHours,
+      cleanestWindow: cleanestWindow && redactPersonalDetails(cleanestWindow), cleanestWindowPeakAqi },
     household_profile: profile,
     current_activity_guidance: outdoorGuidance(isLive ? aqi : null, sensitive),
     forecast_peak_guidance: cleanestWindow ? outdoorGuidance(cleanestWindowPeakAqi, sensitive) : undefined,
@@ -66,7 +67,7 @@ export function constructUserMessage({ message, airData = {}, profile = null, hi
   return `<UNTRUSTED_CONTEXT_JSON>\n${json}\n</UNTRUSTED_CONTEXT_JSON>`;
 }
 
-const { $schema, ...responseJsonSchema } = z.toJSONSchema(AdviceResponseSchema, {
+const { $schema: _$schema, ...responseJsonSchema } = z.toJSONSchema(AdviceResponseSchema, {
   // Keep provider decoding constraints separate from the stricter local schema.
   override({ jsonSchema }) {
     if ('const' in jsonSchema) {
@@ -138,7 +139,7 @@ export function createGeminiAdvisor(aiClient, modelName) {
       }
     } catch (error) {
       if (signal?.aborted) return fallback();
-      console.warn('Gemini request failed:', Number.isInteger(error.status) ? `HTTP ${error.status}` : error.name);
+      console.warn('Gemini request failed:', Number.isInteger(error?.status) ? `HTTP ${error.status}` : 'provider error');
     } finally {
       inFlight -= 1;
     }

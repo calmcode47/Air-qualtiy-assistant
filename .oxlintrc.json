@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "oxc", "unicorn", "typescript"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "no-undef": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error"
+  },
+  "env": { "builtin": true, "es2024": true, "node": true },
+  "overrides": [
+    {
+      "files": ["frontend/src/**", "frontend/tests/**"],
+      "env": { "browser": true }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 const languages = ['en', 'hi', 'pa'];
 
@@ -82,7 +82,7 @@ for (const lang of languages) {
       page.on('pageerror', err => pageErrors.push(err.message));
 
       await page.addInitScript((l) => {
-        localStorage.setItem('i18nextLng', l);
+        localStorage.setItem('aura_language', l);
         localStorage.setItem('aura_onboarding_completed', 'true');
       }, lang);
 

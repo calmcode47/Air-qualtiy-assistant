@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, Info, Sun } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Info } from 'lucide-react';
 import { useProfile } from '../store/profile';
 import { getUsAqiCategory, isSensitiveHousehold, outdoorGuidance } from '../../../shared/aqi.mjs';
 

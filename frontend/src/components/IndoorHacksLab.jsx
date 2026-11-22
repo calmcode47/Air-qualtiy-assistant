@@ -9,12 +9,7 @@ export default function IndoorHacksLab() {
   const [fanType, setFanType] = useState('box20');
   const [filterCount, setFilterCount] = useState(4);
   const [filterGrade, setFilterGrade] = useState('merv13');
-  let profile = {};
-  try {
-    profile = useProfile().profile;
-  } catch {
-    profile = {};
-  }
+  const { profile } = useProfile();
   const activeHack = INDOOR_HACKS.find((hack) => hack.id === selectedHackId) || INDOOR_HACKS[0];
   const isProfileMatch = (hackId) => (
     (hackId === 'corsi-rosenthal' && (profile.monthlyBudgetBand === 'low' || profile.purifierOwned === 'none'))

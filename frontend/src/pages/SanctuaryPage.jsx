@@ -1,13 +1,12 @@
 import React, { Suspense } from 'react';
-import { Volume2, VolumeX, Moon, Sun, Wind, Info, Compass, ShieldCheck, RotateCcw, Layers } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Layers } from 'lucide-react';
 import { toggleAcousticChime } from '../utils/audioChime';
+import { useProfile } from '../store/profile';
 import { useAir } from '../context/AirContext';
 
 import AtmosphericSanctuaryTwin3D from '../components/LazyAtmosphericScene';
 
 export default function SanctuaryPage({
-  cityData: propCityData,
-  outdoorAqi: propOutdoorAqi,
   fanSpeed,
   setFanSpeed,
   isNightMode,
@@ -15,14 +14,8 @@ export default function SanctuaryPage({
   isSoundActive,
   setIsSoundActive
 }) {
-  let airContext;
-  try {
-    airContext = useAir();
-  } catch (e) {
-    airContext = null;
-  }
-  const cityData = airContext?.airData || propCityData;
-  const outdoorAqi = airContext?.outdoorAqi ?? propOutdoorAqi;
+  const { airData: cityData, outdoorAqi } = useAir();
+  const { isSimpleMode } = useProfile();
   const handleToggleSound = () => {
     const next = !isSoundActive;
     setIsSoundActive(next);
@@ -62,11 +55,12 @@ export default function SanctuaryPage({
             }
           >
             <AtmosphericSanctuaryTwin3D
+              key={cityData.id}
+              isSimpleMode={isSimpleMode}
               outdoorAqi={outdoorAqi}
               fanSpeed={fanSpeed}
               setFanSpeed={setFanSpeed}
               isNightMode={isNightMode}
-              setIsNightMode={setIsNightMode}
               cityData={cityData}
               height="560px"
             />
@@ -83,6 +77,7 @@ export default function SanctuaryPage({
             {['off', 'low', 'med', 'high'].map((spd) => (
               <button
                 key={spd}
+                aria-pressed={fanSpeed === spd}
                 onClick={() => setFanSpeed(spd)}
                 className={`px-3 py-1.5 rounded-xl font-mono-code font-bold text-xs uppercase transition ${
                   fanSpeed === spd
@@ -99,6 +94,7 @@ export default function SanctuaryPage({
           <div className="flex items-center gap-3">
             {/* Scene lighting toggle */}
             <button
+              aria-pressed={isNightMode}
               onClick={() => setIsNightMode(!isNightMode)}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-mono-code font-bold text-xs transition border ${
                 isNightMode
@@ -115,7 +111,7 @@ export default function SanctuaryPage({
               onClick={handleToggleSound}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-mono-code font-bold text-xs transition border ${
                 isSoundActive
-                  ? 'bg-[#18261F] text-[#3D6B56] border-[#18261F]'
+                  ? 'bg-[#18261F] text-[#F3C474] border-[#18261F]'
                   : 'bg-white text-[#56685F] border-[#DDD5C7] hover:bg-[#EAE4D8]'
               }`}
               title={isSoundActive ? 'Mute acoustic chime' : 'Start acoustic chime'}
@@ -123,7 +119,7 @@ export default function SanctuaryPage({
             >
               {isSoundActive ? (
                 <>
-                  <Volume2 className="w-3.5 h-3.5 text-[#3D6B56]" />
+                  <Volume2 className="w-3.5 h-3.5 text-[#F3C474]" />
                   <span>Audio Chime: On (Mute)</span>
                 </>
               ) : (

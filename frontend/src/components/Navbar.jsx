@@ -15,36 +15,23 @@ import {
   Search,
   Crosshair,
   WifiOff,
-  AlertTriangle,
   RotateCw,
   Globe,
   BookOpen,
-  HelpCircle,
   Share2
 } from 'lucide-react';
 import { useAir } from '../context/AirContext';
 import { useProfile } from '../store/profile';
 
-export default function Navbar({
-  activePage,
-  setActivePage,
-  selectedCity,
-  setSelectedCity,
-  cityData: propCityData,
-  outdoorAqi: propOutdoorAqi,
-  openMaskGuide,
-  openGlossary,
-  openShareToday
-}) {
+export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) {
   const { t, i18n } = useTranslation();
-  let location, navigate;
-  try {
-    location = useLocation();
-    navigate = useNavigate();
-  } catch (e) {
-    location = { pathname: '/' };
-    navigate = null;
-  }
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const {
+    airData: cityData, outdoorAqi, error, isOffline, isStale, isCached, staleHours, isLoading,
+    selectLocation, searchLocations, requestCurrentLocation
+  } = useAir();
+  const { isSimpleMode, toggleSimpleMode, updateProfile, setIsOnboardingOpen } = useProfile();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -56,37 +43,12 @@ export default function Navbar({
   const searchInputRef = useRef(null);
   const searchButtonRef = useRef(null);
 
-  // Read from AirProvider context
-  let airContext;
-  try {
-    airContext = useAir();
-  } catch (e) {
-    airContext = null;
+  const currentLang = i18n.resolvedLanguage || 'en';
+
+  function handleLanguageChange(language) {
+    void i18n.changeLanguage(language);
+    updateProfile({ preferredLanguage: language });
   }
-
-  let profileContext;
-  try {
-    profileContext = useProfile();
-  } catch (e) {
-    profileContext = null;
-  }
-
-  const cityData = airContext?.airData || propCityData || {};
-  const outdoorAqi = airContext ? airContext.outdoorAqi : propOutdoorAqi ?? null;
-  const isOffline = airContext?.isOffline || false;
-  const isStale = airContext?.isStale || false;
-  const isCached = Boolean(airContext?.isCached || cityData?.isCached);
-  const isFallback = airContext?.isFallback || false;
-  const staleHours = airContext?.staleHours || 0;
-  const isLoading = airContext?.isLoading || false;
-
-  const currentLang = i18n.language ? i18n.language.split('-')[0] : (profileContext?.profile?.preferredLanguage || 'en');
-  const isSimpleMode = profileContext?.isSimpleMode ?? true;
-
-  const handleLanguageChange = (lng) => {
-    i18n.changeLanguage(lng);
-    profileContext?.updateProfile({ preferredLanguage: lng });
-  };
 
   const navItems = [
     { id: 'overview', path: '/', label: t('nav.overview', 'Overview'), icon: Home },
@@ -98,46 +60,34 @@ export default function Navbar({
     { id: 'sanctuary', path: '/home', label: t('nav.sanctuary', '3D Sanctuary'), icon: Layers }
   ];
 
-  const handleNavClick = (item) => {
-    const targetPath = typeof item === 'string'
-      ? (item === 'overview' ? '/' : item === 'sanctuary' ? '/home' : item.startsWith('/') ? item : `/${item}`)
-      : item.path;
-    const targetId = typeof item === 'string' ? item : item.id;
-
-    if (navigate) {
-      navigate(targetPath);
-    }
-    if (setActivePage) {
-      setActivePage(targetId);
-    }
+  function handleNavClick(path) {
+    navigate(path);
     setMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }
 
-  const isItemActive = (item) => {
-    if (location?.pathname) {
-      if (item.path === '/') return location.pathname === '/' || location.pathname === '/overview';
-      return location.pathname === item.path || (item.id === 'sanctuary' && location.pathname === '/sanctuary');
-    }
-    return activePage === item.id;
-  };
+  function isItemActive(item) {
+    return pathname === item.path;
+  }
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
 
-  const search = airContext?.searchLocations;
-  useEffect(() => {
+  function updateSearchQuery(query) {
+    setSearchQuery(query);
     setSearchResults([]);
     setSearchError(false);
-    setIsSearching(Boolean(searchOpen && searchQuery.trim().length >= 2 && search));
-    if (!searchOpen || searchQuery.trim().length < 2 || !search) return;
+    setIsSearching(query.trim().length >= 2);
+  }
+
+  useEffect(() => {
+    if (!searchOpen || searchQuery.trim().length < 2) return;
 
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(6000)]);
-        const results = await search(searchQuery, signal);
+        const results = await searchLocations(searchQuery, signal);
         if (!controller.signal.aborted) {
           setSearchResults(results);
           setSearchError(signal.aborted);
@@ -153,22 +103,13 @@ export default function Navbar({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [searchQuery, searchOpen, search]);
+  }, [searchQuery, searchOpen, searchLocations]);
 
   const handleSelectLocation = (location) => {
-    (airContext?.selectLocation || setSelectedCity)?.(location);
+    selectLocation(location);
+    searchButtonRef.current?.focus();
     setSearchOpen(false);
-    setSearchQuery('');
-  };
-
-  const handleQuickCityChange = (key) => {
-    (airContext?.selectLocation || setSelectedCity)?.(key);
-  };
-
-  const handleGeolocationClick = () => {
-    if (airContext?.useCurrentLocation) {
-      airContext.useCurrentLocation();
-    }
+    updateSearchQuery('');
   };
 
   return (
@@ -187,11 +128,6 @@ export default function Navbar({
                 <span className="flex items-center gap-1.5 text-[#F3C474] font-semibold text-[11px]">
                   <Clock className="w-3.5 h-3.5 fill-[#D18820] text-[#18261F]" />
                   {isStale ? `Data is ${staleHours}h old (cached)` : 'Showing cached data'}
-                </span>
-              ) : isFallback ? (
-                <span className="flex items-center gap-1.5 text-[#A6BCB0] font-semibold text-[11px]">
-                  <AlertTriangle className="w-3.5 h-3.5 fill-[#D18820] text-[#18261F]" />
-                  Sample data · not current
                 </span>
               ) : isOffline ? (
                 <span className="flex items-center gap-1.5 text-[#F3C474] font-semibold text-[11px]">
@@ -228,7 +164,7 @@ export default function Navbar({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2">
         {/* Brand & Subtitle */}
         <button
-          onClick={() => handleNavClick('overview')}
+          onClick={() => handleNavClick('/')}
           className="min-w-0 flex items-center gap-2 text-left group"
         >
           <div className="w-9 h-9 shrink-0 rounded-2xl bg-[#18261F] text-[#F4F2EC] flex items-center justify-center font-serif text-base font-bold shadow-sm group-hover:scale-105 transition">
@@ -251,19 +187,22 @@ export default function Navbar({
           {/* Geolocation Button */}
           <button
             type="button"
-            onClick={handleGeolocationClick}
+            onClick={requestCurrentLocation}
             className="p-1.5 sm:p-2 rounded-full bg-[#FAF7F2] border border-[#DDD5C7] text-[#56685F] hover:text-[#18261F] hover:bg-[#EFECE3] transition shadow-2xs"
             title="Use my current location (GPS)"
             aria-label="Use current location"
           >
-            <Crosshair className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-[#A94A28]' : ''}`} />
+            <Crosshair className={`w-3.5 h-3.5 ${isLoading ? 'motion-safe:animate-spin text-[#A94A28]' : ''}`} />
           </button>
 
           {/* Search Trigger Button */}
           <button
             type="button"
             ref={searchButtonRef}
-            onClick={() => setSearchOpen(!searchOpen)}
+            onClick={() => {
+              if (searchOpen) updateSearchQuery('');
+              setSearchOpen(!searchOpen);
+            }}
             aria-expanded={searchOpen}
             className="p-1.5 sm:p-2 rounded-full bg-[#FAF7F2] border border-[#DDD5C7] text-[#56685F] hover:text-[#18261F] hover:bg-[#EFECE3] transition shadow-2xs"
             title="Search city or locality"
@@ -278,8 +217,8 @@ export default function Navbar({
             <select
               data-testid="location-select"
               aria-label="Select City"
-              value={cityData?.id || selectedCity || 'delhi'}
-              onChange={(e) => handleQuickCityChange(e.target.value)}
+              value={cityData.id}
+              onChange={(e) => selectLocation(e.target.value)}
               className="text-xs font-bold font-mono-code bg-transparent text-[#18261F] cursor-pointer focus:outline-none max-w-[85px] sm:max-w-[110px] truncate"
             >
               <option value="delhi">Delhi NCR</option>
@@ -317,7 +256,7 @@ export default function Navbar({
           {/* Simple Mode Toggle */}
           <button
             type="button"
-            onClick={() => profileContext?.toggleSimpleMode()}
+            onClick={toggleSimpleMode}
             className={`hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-xs font-semibold transition shadow-2xs ${
               isSimpleMode
                 ? 'bg-[#EAF2ED] border-[#CCE0D4] text-[#3D6B56]'
@@ -362,7 +301,7 @@ export default function Navbar({
           {/* Household Profile Button */}
           <button
             type="button"
-            onClick={() => profileContext?.setIsOnboardingOpen(true)}
+            onClick={() => setIsOnboardingOpen(true)}
             className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#FAF7F2] border border-[#DDD5C7] text-xs font-semibold text-[#18261F] hover:bg-[#EFECE3] transition shadow-2xs"
             title="Edit Household Profile"
             aria-label="Edit Household Profile"
@@ -407,7 +346,7 @@ export default function Navbar({
               <button
                 key={item.id}
                 aria-current={isActive ? 'page' : undefined}
-                onClick={() => handleNavClick(item)}
+                onClick={() => handleNavClick(item.path)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition ${
                   isActive
                     ? 'bg-[#18261F] text-[#F4F2EC] shadow-sm'
@@ -434,7 +373,7 @@ export default function Navbar({
                 type="search"
                 aria-label="Search for a location"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(event) => updateSearchQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {
                     setSearchOpen(false);
@@ -448,7 +387,7 @@ export default function Navbar({
                 <button
                   type="button"
                   onClick={() => {
-                    setSearchQuery('');
+                    updateSearchQuery('');
                     searchInputRef.current?.focus();
                   }}
                   aria-label="Clear location search"
@@ -495,8 +434,8 @@ export default function Navbar({
         </div>
       )}
 
-      {airContext?.error && (
-        <p role="status" className="bg-[#FBF5EC] text-[#79500F] px-4 py-2 text-xs text-center">{airContext.error}</p>
+      {error && (
+        <p role="status" className="bg-[#FBF5EC] text-[#79500F] px-4 py-2 text-xs text-center">{error}</p>
       )}
 
       {/* Mobile Menu Dropdown */}
@@ -519,8 +458,7 @@ export default function Navbar({
             <button
               type="button"
               onClick={() => {
-                profileContext?.setIsOnboardingOpen(true);
-                setMobileMenuOpen(false);
+                setIsOnboardingOpen(true);
               }}
               className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#FAF7F2] border border-[#DDD5C7] text-[#18261F] mb-1"
             >
@@ -537,7 +475,7 @@ export default function Navbar({
                 <button
                   key={item.id}
                   aria-current={isActive ? 'page' : undefined}
-                  onClick={() => handleNavClick(item)}
+                  onClick={() => handleNavClick(item.path)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
                     isActive
                       ? 'bg-[#18261F] text-[#F4F2EC]'
@@ -557,7 +495,6 @@ export default function Navbar({
                   type="button"
                   onClick={() => {
                     openMaskGuide();
-                    setMobileMenuOpen(false);
                   }}
                   className="flex-1 py-2 px-3 rounded-xl bg-[#FAF7F2] border border-[#DDD5C7] text-xs font-semibold text-[#18261F] flex items-center justify-center gap-1.5"
                 >
@@ -570,7 +507,6 @@ export default function Navbar({
                   type="button"
                   onClick={() => {
                     openGlossary();
-                    setMobileMenuOpen(false);
                   }}
                   className="flex-1 py-2 px-3 rounded-xl bg-[#FAF7F2] border border-[#DDD5C7] text-xs font-semibold text-[#18261F] flex items-center justify-center gap-1.5"
                 >

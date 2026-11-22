@@ -77,6 +77,7 @@ flowchart LR
 ## Validation
 
 ```bash
+npm run lint
 npm test
 npm run check:contrast
 npm run build
@@ -84,7 +85,7 @@ npm --prefix frontend exec -- playwright install chromium
 npm run test:e2e
 ```
 
-Tests cover AQI boundaries, missing forecast points, optional weather failures, location search, household selection, conversational context, cache behavior, browser accessibility, protected advisor access, provider retry and cooldown, and urgent guidance. Browser coverage runs at mobile and desktop widths. The GitHub workflow runs those checks and audits all lockfiles.
+Tests cover AQI boundaries, missing forecast points, optional weather failures, location search, household selection, conversational context, cache behavior, browser accessibility, protected advisor access, provider retry and cooldown, and urgent guidance. Playwright runs at mobile and desktop widths with deterministic air-feed fixtures, real browser storage, and the local API. It checks keyboard focus, both share-card sizes, language selection, and axe WCAG 2.0 and 2.1 A/AA rules. The GitHub workflow runs those checks and audits all lockfiles.
 
 ## Data and guidance sources
 

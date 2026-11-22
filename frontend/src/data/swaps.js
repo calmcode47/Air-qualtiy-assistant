@@ -1,3 +1,6 @@
+import { isSensitiveHousehold } from '../../../shared/aqi.mjs';
+
+
 /** Everyday actions with qualitative effects; no personal exposure is inferred. */
 export const SWAPS = [
   {
@@ -108,4 +111,23 @@ export const SWAPS = [
 
 export function getSwapById(id) {
   return SWAPS.find((swap) => swap.id === id) || null;
+}
+
+export function getTailoredSwaps(profile) {
+  const ids = [];
+  if (['car', 'two_wheeler'].includes(profile.commute)) ids.push('swap_metro_bus');
+
+  const usesSolidFuel = profile.cookingFuel === 'biomass_wood';
+  if (usesSolidFuel && profile.monthlyBudgetBand !== 'low') {
+    ids.push('swap_clean_cooking');
+  } else if (!usesSolidFuel) {
+    ids.push('swap_rear_burner');
+  }
+
+  if (isSensitiveHousehold(profile)) ids.push('swap_afternoon_walk');
+  if (profile.monthlyBudgetBand === 'low') ids.push('swap_wet_mopping');
+  if (['portable', 'diy'].includes(profile.purifierOwned)) ids.push('swap_bedroom_purifier');
+
+  ids.push('swap_closed_windows_peak', 'swap_wet_mopping', 'swap_afternoon_walk');
+  return [...new Set(ids)].slice(0, 3).map(getSwapById);
 }

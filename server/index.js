@@ -11,7 +11,6 @@ import { generateRuleBasedAdvice, isUrgentQuestion } from '../shared/advice.mjs'
 
 const entry = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(entry), '..');
-dotenv.config({ path: path.join(projectRoot, '.env') });
 
 const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
@@ -180,6 +179,7 @@ export function createApp({
 
 const isMain = process.argv[1] && entry === path.resolve(process.argv[1]);
 if (isMain) {
+  dotenv.config({ path: path.join(projectRoot, '.env') });
   const { GEMINI_API_KEY, GEMINI_MODEL, AURA_ADVISOR_ACCESS_CODE, VITE_USE_MOCK, CORS_ORIGIN, AURA_TRUST_PROXY } = process.env;
   const port = Number(process.env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be an integer between 1 and 65535.');

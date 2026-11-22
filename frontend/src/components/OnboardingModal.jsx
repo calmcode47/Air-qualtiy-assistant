@@ -1,333 +1,191 @@
-import React, { useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useProfile } from '../store/profile';
-import {
-  Users,
-  Home,
-  ShieldCheck,
-  Check,
-  ArrowRight,
-  ArrowLeft,
-  X,
-  HeartPulse,
-  Baby,
-  Activity,
-  DollarSign,
-  Languages
-} from 'lucide-react';
+import Modal from './Modal';
 
-export default function OnboardingModal() {
-  const {
-    profile,
-    updateProfile,
-    isOnboardingOpen,
-    setIsOnboardingOpen,
-    completeOnboarding
-  } = useProfile();
+const steps = ['people', 'home', 'equipment'];
+const people = [['adults', 1], ['children', 0], ['elderly', 0]];
+const conditions = ['asthma', 'heart', 'pregnancy'];
+const fieldsByStep = {
+  home: {
+    homeType: ['apartment', 'independent_house', 'floor', 'informal'],
+    commute: ['two_wheeler', 'bus_metro', 'car', 'walk', 'cycle', 'wfh'],
+    cookingFuel: ['lpg', 'piped_gas', 'electric_induction', 'biomass_wood']
+  },
+  equipment: {
+    purifierOwned: ['none', 'diy', 'portable'],
+    monthlyBudgetBand: ['low', 'medium', 'high'],
+    preferredLanguage: ['en', 'hi', 'pa']
+  }
+};
 
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({ ...profile });
+function MemberCount({ label, count, min, onChange, t }) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-[#E6DED6] bg-white p-2 sm:p-3.5 text-center space-y-1">
+      <span className="block text-xs font-bold text-[#56685F]">{label}</span>
+      <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
+        <button
+          type="button"
+          aria-label={t('onboarding.remove', { label })}
+          aria-disabled={count <= min}
+          onClick={() => { if (count > min) onChange(count - 1); }}
+          className="h-7 w-7 shrink-0 rounded-full border border-[#DFD6CB] bg-[#FAF7F2] text-sm font-bold aria-disabled:opacity-60"
+        >
+          −
+        </button>
+        <output className="font-mono font-bold text-[#18261F]">{count}</output>
+        <button
+          type="button"
+          aria-label={t('onboarding.add', { label })}
+          aria-disabled={count >= 20}
+          onClick={() => { if (count < 20) onChange(count + 1); }}
+          className="h-7 w-7 shrink-0 rounded-full border border-[#DFD6CB] bg-[#FAF7F2] text-sm font-bold aria-disabled:opacity-60"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
 
-  if (!isOnboardingOpen) return null;
+function HouseholdForm({ profile, onSave, onClose }) {
+  const { t } = useTranslation();
+  const titleId = useId();
+  const titleRef = useRef(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [draft, setDraft] = useState(profile);
+  const step = steps[stepIndex];
+  const isLastStep = stepIndex === steps.length - 1;
 
-  const toggleCondition = (cond) => {
-    setFormData((prev) => {
-      const exists = prev.conditions?.includes(cond);
-      const next = exists
-        ? prev.conditions.filter((c) => c !== cond)
-        : [...(prev.conditions || []), cond];
-      return { ...prev, conditions: next };
+  useLayoutEffect(() => {
+    titleRef.current.focus();
+  }, [stepIndex]);
+
+  function changeField(field, value) {
+    setDraft((previous) => ({ ...previous, [field]: value }));
+  }
+
+  function toggleCondition(condition) {
+    setDraft((previous) => {
+      const selected = previous.conditions || [];
+      return {
+        ...previous,
+        conditions: selected.includes(condition)
+          ? selected.filter((item) => item !== condition)
+          : [...selected, condition]
+      };
     });
-  };
-
-  const handleNext = () => {
-    updateProfile(formData);
-    if (step < 3) {
-      setStep(step + 1);
-    } else {
-      completeOnboarding();
-    }
-  };
-
-  const handleSkip = () => {
-    completeOnboarding();
-  };
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
-      <div
-        className="bg-[#FAF7F2] w-full max-w-lg rounded-3xl border border-[#DFD6CB] p-6 sm:p-7 paper-shadow space-y-6 max-h-[90vh] overflow-y-auto"
-        role="dialog"
-        aria-modal="true"
-      >
-        {/* Header & Steps Indicator */}
-        <div className="flex items-start justify-between border-b border-[#E6DED6] pb-4">
+    <Modal labelledBy={titleId} onClose={onClose} overlayClassName="fixed inset-0 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-3xl border border-[#DFD6CB] bg-[#FAF7F2] p-5 sm:p-7 paper-shadow space-y-6">
+        <div className="flex items-start justify-between gap-3 border-b border-[#E6DED6] pb-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[#18261F] text-[#FAF7F2] text-xs font-bold flex items-center justify-center">
-                {step}
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[#56685F] font-bold">
-                Step {step} of 3 • Household Tailoring
-              </span>
-            </div>
-            <h2 className="text-xl font-serif-natural font-bold text-[#18261F] mt-1">
-              {step === 1 && 'Who Lives In Your Home?'}
-              {step === 2 && 'Home Structure & Daily Commute'}
-              {step === 3 && 'Clean Air Equipment & Budget'}
+            <p className="font-mono text-xs font-bold text-[#56685F]">
+              {t('onboarding.progress', { current: stepIndex + 1, total: steps.length })}
+            </p>
+            <h2 id={titleId} ref={titleRef} data-initial-focus tabIndex={-1} className="mt-1 text-xl font-serif-natural font-bold text-[#18261F]">
+              {t(`onboarding.steps.${step}`)}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={handleSkip}
-            className="text-xs text-[#56685F] hover:text-[#18261F] underline p-1"
-          >
-            Skip for now
+          <button type="button" onClick={onClose} className="shrink-0 p-1 text-xs text-[#56685F] underline hover:text-[#18261F]">
+            {t('onboarding.skip')}
           </button>
         </div>
 
-        {/* STEP 1: Demographics & Conditions */}
-        {step === 1 && (
+        {step === 'people' ? (
           <div className="space-y-5">
-            <p className="text-xs text-[#56685F] leading-relaxed">
-              Winter smog affects developing pediatric lungs and seniors differently. Tell us who you're protecting.
-            </p>
-
-            {/* Counts: Adults, Children, Elderly */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-white p-3.5 rounded-2xl border border-[#E6DED6] text-center space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#56685F] block">Adults</span>
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData((p) => ({ ...p, adults: Math.max(1, p.adults - 1) }))}
-                    className="w-6 h-6 rounded-full bg-[#FAF7F2] border border-[#DFD6CB] text-xs font-bold"
-                  >
-                    -
-                  </button>
-                  <span className="text-lg font-bold font-mono text-[#18261F]">{formData.adults}</span>
-                  <button
-                    type="button"
-                    disabled={formData.adults >= 20}
-                    onClick={() => setFormData((p) => ({ ...p, adults: Math.min(20, p.adults + 1) }))}
-                    className="w-6 h-6 rounded-full bg-[#FAF7F2] border border-[#DFD6CB] text-xs font-bold"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-[#E6DED6] text-center space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#56685F] block">Children</span>
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData((p) => ({ ...p, children: Math.max(0, p.children - 1) }))}
-                    className="w-6 h-6 rounded-full bg-[#FAF7F2] border border-[#DFD6CB] text-xs font-bold"
-                  >
-                    -
-                  </button>
-                  <span className="text-lg font-bold font-mono text-[#18261F]">{formData.children}</span>
-                  <button
-                    type="button"
-                    disabled={formData.children >= 20}
-                    onClick={() => setFormData((p) => ({ ...p, children: Math.min(20, p.children + 1) }))}
-                    className="w-6 h-6 rounded-full bg-[#FAF7F2] border border-[#DFD6CB] text-xs font-bold"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-[#E6DED6] text-center space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#56685F] block">Elderly</span>
-                <div className="flex items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData((p) => ({ ...p, elderly: Math.max(0, p.elderly - 1) }))}
-                    className="w-6 h-6 rounded-full bg-[#FAF7F2] border border-[#DFD6CB] text-xs font-bold"
-                  >
-                    -
-                  </button>
-                  <span className="text-lg font-bold font-mono text-[#18261F]">{formData.elderly}</span>
-                  <button
-                    type="button"
-                    disabled={formData.elderly >= 20}
-                    onClick={() => setFormData((p) => ({ ...p, elderly: Math.min(20, p.elderly + 1) }))}
-                    className="w-6 h-6 rounded-full bg-[#FAF7F2] border border-[#DFD6CB] text-xs font-bold"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              {people.map(([field, min]) => (
+                <MemberCount
+                  key={field}
+                  label={t(`onboarding.people.${field}`)}
+                  count={draft[field]}
+                  min={min}
+                  onChange={(count) => changeField(field, count)}
+                  t={t}
+                />
+              ))}
             </div>
-
-            {/* Health Conditions Multi-Select */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Sensitive Conditions in Household (select all that apply):
-              </label>
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-bold text-[#18261F]">{t('onboarding.conditionsLabel')}</legend>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'asthma', label: '🫁 Asthma / Chronic Bronchitis' },
-                  { id: 'heart', label: '❤️ Cardiovascular Condition' },
-                  { id: 'pregnancy', label: '🤰 Expectant Mother' }
-                ].map((cond) => {
-                  const active = formData.conditions?.includes(cond.id);
-                  return (
-                    <button
-                      key={cond.id}
-                      type="button"
-                      onClick={() => toggleCondition(cond.id)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-medium border transition ${
-                        active
-                          ? 'bg-[#18261F] text-[#FAF7F2] border-[#18261F] shadow-xs'
-                          : 'bg-white text-[#56685F] border-[#E6DED6] hover:bg-[#FAF7F2]'
-                      }`}
-                    >
-                      {cond.label}
-                    </button>
-                  );
-                })}
+                {conditions.map((condition) => (
+                  <button
+                    key={condition}
+                    type="button"
+                    aria-pressed={Boolean(draft.conditions?.includes(condition))}
+                    onClick={() => toggleCondition(condition)}
+                    className="rounded-xl border border-[#E6DED6] bg-white px-3.5 py-2 text-xs font-medium text-[#56685F] aria-pressed:border-[#18261F] aria-pressed:bg-[#18261F] aria-pressed:text-[#FAF7F2]"
+                  >
+                    {t(`onboarding.conditions.${condition}`)}
+                  </button>
+                ))}
               </div>
-            </div>
+            </fieldset>
           </div>
-        )}
-
-        {/* STEP 2: Home Type, Commute, Cooking Fuel */}
-        {step === 2 && (
+        ) : (
           <div className="space-y-4">
-            {/* Home Type */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Home Architecture:
+            {Object.entries(fieldsByStep[step]).map(([field, values]) => (
+              <label key={field} className="block space-y-1.5 text-xs font-bold text-[#18261F]">
+                <span>{t(`onboarding.fields.${field}.label`)}</span>
+                <select
+                  value={draft[field]}
+                  onChange={(event) => changeField(field, event.target.value)}
+                  className="w-full rounded-xl border border-[#DFD6CB] bg-white p-2.5 font-semibold text-[#18261F]"
+                >
+                  {values.map((value) => (
+                    <option key={value} value={value}>{t(`onboarding.fields.${field}.${value}`)}</option>
+                  ))}
+                </select>
               </label>
-              <select
-                value={formData.homeType}
-                onChange={(e) => setFormData((p) => ({ ...p, homeType: e.target.value }))}
-                className="w-full text-xs font-semibold bg-white border border-[#DFD6CB] rounded-xl p-2.5 text-[#18261F] focus:outline-none"
-              >
-                <option value="apartment">Multi-story Apartment (Stack effect / shafts)</option>
-                <option value="independent_house">Independent House / Villa</option>
-                <option value="floor">Builder Floor / Ground Level</option>
-                <option value="informal">Informal / High draft dwelling</option>
-              </select>
-            </div>
-
-            {/* Commute */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Primary Commute Method:
-              </label>
-              <select
-                value={formData.commute}
-                onChange={(e) => setFormData((p) => ({ ...p, commute: e.target.value }))}
-                className="w-full text-xs font-semibold bg-white border border-[#DFD6CB] rounded-xl p-2.5 text-[#18261F] focus:outline-none"
-              >
-                <option value="two_wheeler">🛵 Two-Wheeler (Motorcycle / Scooter)</option>
-                <option value="bus_metro">🚇 Underground Metro / Electric Bus</option>
-                <option value="car">🚗 Personal Car (Combustion)</option>
-                <option value="walk">🚶 Walk / Bicycle</option>
-                <option value="wfh">💻 Work From Home (Strict Indoor)</option>
-              </select>
-            </div>
-
-            {/* Cooking Fuel */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Kitchen Cooking Fuel:
-              </label>
-              <select
-                value={formData.cookingFuel}
-                onChange={(e) => setFormData((p) => ({ ...p, cookingFuel: e.target.value }))}
-                className="w-full text-xs font-semibold bg-white border border-[#DFD6CB] rounded-xl p-2.5 text-[#18261F] focus:outline-none"
-              >
-                <option value="lpg">LPG Cylinder with Range Hood</option>
-                <option value="piped_gas">Piped Natural Gas (PNG)</option>
-                <option value="electric_induction">Electric / Induction (Zero indoor combustion)</option>
-                <option value="biomass_wood">Wood / Coal / Kerosene (High Indoor Soot)</option>
-              </select>
-            </div>
+            ))}
           </div>
         )}
 
-        {/* STEP 3: Purifier, Budget, Language */}
-        {step === 3 && (
-          <div className="space-y-4">
-            {/* Purifier Owned */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Clean Air Hardware at Home:
-              </label>
-              <select
-                value={formData.purifierOwned}
-                onChange={(e) => setFormData((p) => ({ ...p, purifierOwned: e.target.value }))}
-                className="w-full text-xs font-semibold bg-white border border-[#DFD6CB] rounded-xl p-2.5 text-[#18261F] focus:outline-none"
-              >
-                <option value="none">No air purifier currently owned</option>
-                <option value="diy">$35 DIY Corsi-Rosenthal Box Fan</option>
-                <option value="portable">Brand-Name Commercial HEPA Purifier</option>
-              </select>
-            </div>
-
-            {/* Monthly Budget Band */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Monthly Clean Air Budget Preference:
-              </label>
-              <select
-                value={formData.monthlyBudgetBand}
-                onChange={(e) => setFormData((p) => ({ ...p, monthlyBudgetBand: e.target.value }))}
-                className="w-full text-xs font-semibold bg-white border border-[#DFD6CB] rounded-xl p-2.5 text-[#18261F] focus:outline-none"
-              >
-                <option value="low">Low Budget (Under $40 total — DIY &amp; textiles)</option>
-                <option value="medium">Moderate Budget ($50 - $150 USD)</option>
-                <option value="high">Flexible Budget ($200+ commercial appliances)</option>
-              </select>
-            </div>
-
-            {/* Preferred Language */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#18261F] block">
-                Preferred Interface Language:
-              </label>
-              <select
-                value={formData.preferredLanguage}
-                onChange={(e) => setFormData((p) => ({ ...p, preferredLanguage: e.target.value }))}
-                className="w-full text-xs font-semibold bg-white border border-[#DFD6CB] rounded-xl p-2.5 text-[#18261F] focus:outline-none"
-              >
-                <option value="en">English</option>
-                <option value="hi">हिंदी (Hindi)</option>
-                <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Controls */}
-        <div className="flex items-center justify-between pt-3 border-t border-[#E6DED6]">
-          {step > 1 ? (
+        <div className="flex items-center justify-between gap-2 border-t border-[#E6DED6] pt-3">
+          {stepIndex > 0 && (
             <button
               type="button"
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-2 rounded-xl text-xs font-semibold border border-[#DFD6CB] hover:bg-[#FAF7F2] text-[#18261F] flex items-center gap-1.5 transition"
+              onClick={() => setStepIndex(stepIndex - 1)}
+              className="flex items-center gap-1.5 rounded-xl border border-[#DFD6CB] px-4 py-2 text-xs font-semibold text-[#18261F]"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back</span>
+              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+              {t('onboarding.back')}
             </button>
-          ) : (
-            <div></div>
           )}
-
           <button
             type="button"
-            onClick={handleNext}
-            className="px-5 py-2.5 rounded-xl bg-[#18261F] text-[#FAF7F2] text-xs font-bold hover:bg-[#2B3F35] transition flex items-center gap-2 shadow-sm"
+            onClick={() => isLastStep ? onSave(draft) : setStepIndex(stepIndex + 1)}
+            className="ml-auto flex items-center gap-2 rounded-xl bg-[#18261F] px-5 py-2.5 text-xs font-bold text-[#FAF7F2] shadow-sm hover:bg-[#2B3F35]"
           >
-            <span>{step === 3 ? 'Save My Household Profile' : 'Continue'}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            {t(isLastStep ? 'onboarding.save' : 'onboarding.continue')}
+            <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
+  );
+}
+
+export default function OnboardingModal() {
+  const { i18n } = useTranslation();
+  const { profile, updateProfile, isOnboardingOpen, completeOnboarding } = useProfile();
+  if (!isOnboardingOpen) return null;
+
+  function saveProfile(draft) {
+    updateProfile(draft);
+    void i18n.changeLanguage(draft.preferredLanguage);
+    completeOnboarding();
+  }
+
+  return (
+    <HouseholdForm
+      profile={{ ...profile, preferredLanguage: i18n.resolvedLanguage || profile.preferredLanguage }}
+      onSave={saveProfile}
+      onClose={completeOnboarding}
+    />
   );
 }

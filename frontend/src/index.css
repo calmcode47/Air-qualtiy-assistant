@@ -126,3 +126,11 @@ textarea:focus-visible {
   outline: 2px solid #3D6B56;
   outline-offset: 2px;
 }
+
+html:has(dialog:modal) {
+  overflow: hidden;
+}
+
+#main-content {
+  scroll-margin-top: 8rem;
+}

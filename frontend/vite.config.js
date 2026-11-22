@@ -2,6 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const sceneEntry = 'AtmosphericSanctuaryTwin3D';
+const sceneShaders = 'three-shaders';
+const sceneGeometry = 'three-geometry';
+const sceneChunks = [sceneEntry, sceneShaders, sceneGeometry];
+const sceneChunkPattern = new RegExp(`/assets/(?:${sceneChunks.join('|')})-[^/]+\\.js$`);
+
 export default defineConfig({
   plugins: [
     react(),
@@ -37,14 +43,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
-        globIgnores: ['**/AtmosphericSanctuaryTwin3D-*.js'],
+        globIgnores: [`**/{${sceneChunks.join(',')}}-*.js`],
         runtimeCaching: [
           {
-            urlPattern: /\/assets\/AtmosphericSanctuaryTwin3D-[^/]+\.js$/,
+            urlPattern: sceneChunkPattern,
             handler: 'CacheFirst',
             options: {
               cacheName: 'aura-illustration',
-              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 7 }
+              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 7 }
             }
           },
           {
@@ -65,6 +71,24 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: sceneShaders,
+              test: /[\\/]three[\\/]src[\\/]renderers[\\/]shaders[\\/]ShaderChunk\.js$/
+            },
+            {
+              name: sceneGeometry,
+              test: /[\\/]three[\\/]src[\\/](?:math|geometries)[\\/]/
+            }
+          ]
+        }
+      }
+    }
+  },
   test: {
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}']
   },

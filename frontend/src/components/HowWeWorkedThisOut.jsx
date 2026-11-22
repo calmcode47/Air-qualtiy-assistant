@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { HelpCircle, X, ShieldAlert, CheckCircle2, AlertTriangle, ExternalLink } from 'lucide-react';
+import React, { useId, useState } from 'react';
+import Modal from './Modal';
+import { HelpCircle, X, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export default function HowWeWorkedThisOut({
   title,
@@ -11,6 +12,7 @@ export default function HowWeWorkedThisOut({
   buttonLabel = 'How we worked this out',
   className = ''
 }) {
+  const titleId = useId();
   const [isOpen, setIsOpen] = useState(false);
 
   // If a claim object is passed, extract properties
@@ -60,11 +62,9 @@ export default function HowWeWorkedThisOut({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+        <Modal labelledBy={titleId} onClose={() => setIsOpen(false)} overlayClassName="fixed inset-0 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
           <div
             className="bg-[#FAF7F2] w-full max-w-lg rounded-3xl border border-[#DFD6CB] p-6 paper-shadow space-y-4 max-h-[90vh] overflow-y-auto"
-            role="dialog"
-            aria-modal="true"
           >
             {/* Header */}
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#DFD6CB]">
@@ -72,7 +72,7 @@ export default function HowWeWorkedThisOut({
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#56685F] font-bold">
                   Calculation Transparency
                 </span>
-                <h3 className="text-base font-bold font-serif-natural text-[#1A2922]">
+                <h3 id={titleId} className="text-base font-bold font-serif-natural text-[#1A2922]">
                   {title || 'How We Worked This Out'}
                 </h3>
               </div>
@@ -80,6 +80,7 @@ export default function HowWeWorkedThisOut({
                 type="button"
                 onClick={() => setIsOpen(false)}
                 className="p-1 rounded-full text-[#56685F] hover:text-[#1A2922] hover:bg-black/5 transition"
+                data-initial-focus
                 aria-label="Close calculation details"
               >
                 <X className="w-5 h-5" />
@@ -153,7 +154,7 @@ export default function HowWeWorkedThisOut({
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 
 test.describe('Aura Behavior Verification Suite', () => {
@@ -10,111 +10,135 @@ test.describe('Aura Behavior Verification Suite', () => {
     });
   });
 
-  test('changes location and updates hero text and atmospheric telemetry', async ({ page }) => {
+  test('updates the overview and forecast when the location changes', async ({ page }) => {
     await page.goto('/');
+    const summary = page.getByTestId('hero-status-summary');
+    await expect(summary).toContainText('Unhealthy for Delhi');
+    await page.getByRole('button', { name: 'View Schedule' }).click();
+    const forecast = page.getByRole('group', { name: 'Hourly US AQI forecast' });
+    await expect(forecast.getByRole('button', { name: /US AQI 124/ })).toBeVisible();
 
-    const heroSummary = page.locator('[data-testid="hero-status-summary"]');
-    await expect(heroSummary).toBeVisible();
-    await expect(heroSummary).toContainText('Delhi');
-
-    // Select Lahore
-    const locationSelect = page.locator('[data-testid="location-select"]');
-    await expect(locationSelect).toBeVisible();
-    await locationSelect.selectOption('lahore');
-
-    // Verify hero text updates to Lahore
-    await expect(heroSummary).toContainText('Lahore');
-    await expect(page.locator('body')).toContainText('Lahore');
+    await page.getByTestId('location-select').selectOption('lahore');
+    await expect(forecast.getByRole('button', { name: /US AQI 115/ })).toBeVisible();
+    await expect(forecast.getByRole('button', { name: /US AQI 124/ })).toHaveCount(0);
+    await page.goto('/');
+    await expect(summary).toContainText('Unhealthy for Sensitive Groups for Lahore');
   });
 
-  test('updates Overview action plan when household profile changes to child + two-wheeler', async ({ page }) => {
+  test('saves a household edit and updates the overview action plan', async ({ page }) => {
     await page.route('https://air-quality-api.open-meteo.com/**', (route) => route.abort());
+    await page.addInitScript(() => {
+      if (!localStorage.getItem('aura_household_profile')) {
+        localStorage.setItem('aura_household_profile', JSON.stringify({
+          adults: 1, children: 0, elderly: 0, conditions: [], commute: 'car', purifierOwned: 'none'
+        }));
+      }
+    });
     await page.goto('/');
+    const action = page.getByTestId('action-step-title-01');
+    await expect(action).toHaveText('Check current local air-quality guidance');
 
-    // 1. Set car commuter profile without children
-    await page.evaluate(() => {
-      const commuterProfile = {
-        id: 'car_commuter',
-        title: 'Solo Car Commuter',
-        adults: 1,
-        children: 0,
-        elderly: 0,
-        conditions: [],
-        commute: 'car',
-        cookingFuel: 'lpg',
-        homeType: 'apartment',
-        purifierOwned: 'none',
-        monthlyBudgetBand: 'medium'
-      };
-      localStorage.setItem('aura_household_profile', JSON.stringify(commuterProfile));
-    });
-
+    const opener = page.getByRole('button', { name: 'Customize Household' });
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Who lives in your home?' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Add Children' }).click();
+    await dialog.getByRole('button', { name: 'Continue' }).click();
+    await page.getByLabel('Main way of commuting').selectOption('two_wheeler');
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('button', { name: 'Save household profile' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(opener).toBeFocused();
+    await expect(action).toHaveText('Plan outdoor activity for a sensitive household');
+    await expect(page.getByText('Commute: Motorcycle or scooter')).toBeVisible();
     await page.reload();
-    const stepOneTitle = page.locator('[data-testid="action-step-title-01"]');
-    await expect(stepOneTitle).toBeVisible();
-    await expect(stepOneTitle).toContainText('Check current local air-quality guidance');
+    await expect(action).toHaveText('Plan outdoor activity for a sensitive household');
+    await expect(page.getByText('Commute: Motorcycle or scooter')).toBeVisible();
 
-    // 2. Now update profile in localStorage to child + two-wheeler commute
-    await page.evaluate(() => {
-      const customProfile = {
-        id: 'family_commuter',
-        title: 'Child and Two-Wheeler Commute',
-        adults: 2,
-        children: 1,
-        elderly: 0,
-        conditions: [],
-        commute: 'two_wheeler',
-        cookingFuel: 'lpg',
-        homeType: 'apartment',
-        purifierOwned: 'none',
-        monthlyBudgetBand: 'medium'
-      };
-      localStorage.setItem('aura_household_profile', JSON.stringify(customProfile));
-    });
-
-    // 3. Reload page to reflect updated household profile
-    await page.reload();
-    await expect(stepOneTitle).toBeVisible();
-    await expect(stepOneTitle).toContainText('Plan outdoor activity for a sensitive household');
+    await opener.click();
+    await page.getByRole('button', { name: 'Remove Children' }).click();
+    await page.keyboard.press('Escape');
+    await expect(opener).toBeFocused();
+    await expect(action).toHaveText('Plan outdoor activity for a sensitive household');
   });
 
-  test('displays visible cached label when network is blocked after initial visit', async ({ page, context }) => {
-    // Pre-populate localStorage with cached air data from a previous session
-    await page.addInitScript(() => {
-      const cached = {
-        id: 'delhi',
-        name: 'Delhi NCR',
-        region: 'Indo-Gangetic Basin, India',
-        lat: 28.6139,
-        lon: 77.2090,
-        aqi: 320,
-        aqiSystem: 'US AQI',
-        category: 'Hazardous',
-        descriptor: 'Very Poor Winter Smog • Cached Telemetry',
-        pm25: 140,
-        pm10: 220,
-        tempC: 18,
-        humidity: 60,
-        windSpeed: '1.2 m/s',
-        inversionCap: 450,
-        cleanestWindow: '1:30 PM – 3:30 PM',
-        timestamp: Date.now() - 3 * 3600 * 1000,
-        isLive: false,
-        isCached: true,
-        staleHours: 3
-      };
-      localStorage.setItem('aura_air_cache_delhi', JSON.stringify(cached));
-    });
-
-    // Block all outbound requests to open-meteo APIs so the app serves from cache
-    await context.route('**/*open-meteo.com/**', (route) => route.abort());
-
+  test('returns focus to the guide opener on Escape and keeps the background inert', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('#main-content')).toBeVisible();
+    const opener = page.getByRole('button', { name: /respirator guide/i }).last();
+    await opener.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: /respirator guide/i });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Close mask guide' })).toBeFocused();
+    await page.locator('.skip-link').evaluate((element) => element.focus());
+    await expect(dialog.getByRole('button', { name: 'Close mask guide' })).toBeFocused();
+    const result = await new AxeBuilder({ page }).include('dialog').analyze();
+    expect(result.violations).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
 
-    // Assert visible cached label appears
-    const cachedBadge = page.locator('text=/cached/i').first();
-    await expect(cachedBadge).toBeVisible();
+  test('exports both share-card sizes and reports clipboard errors', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: async () => { throw new Error('Permission denied'); } }
+      });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Share Status' }).click();
+    const dialog = page.getByRole('dialog', { name: "Share Today's Air Status" });
+    await expect(dialog).toBeVisible();
+
+    for (const [ratio, height] of [['3-4', 1440], ['9-16', 1920]]) {
+      const size = dialog.getByTestId(`share-ratio-${ratio}`);
+      await size.click();
+      await expect(size).toHaveAttribute('aria-pressed', 'true');
+
+      const downloading = page.waitForEvent('download');
+      await dialog.getByRole('button', { name: 'Save Image' }).click();
+      const output = await downloading;
+      expect(output.suggestedFilename()).toBe('aura-air-status-delhi-ncr.png');
+      const stream = await output.createReadStream();
+      const chunks = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      const png = Buffer.concat(chunks);
+      expect(png.subarray(12, 16).toString()).toBe('IHDR');
+      expect(png.readUInt32BE(16)).toBe(1080);
+      expect(png.readUInt32BE(20)).toBe(height);
+    }
+
+    await dialog.getByRole('button', { name: 'Copy text summary' }).click();
+    await expect(dialog.getByRole('status')).toHaveText(/clipboard access is unavailable/i);
+  });
+
+  test('applies the language selected in the household editor', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Customize Household' }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByLabel('Interface language').selectOption('pa');
+    await page.getByRole('button', { name: 'Save household profile' }).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'pa');
+    await page.reload();
+    await expect(page.getByRole('combobox', { name: 'Select Language' })).toHaveValue('pa');
+    await page.getByRole('button', { name: 'Customize Household' }).click();
+    await expect(page.getByRole('dialog', { name: 'ਤੁਹਾਡੇ ਘਰ ਵਿੱਚ ਕੌਣ ਰਹਿੰਦਾ ਹੈ?' })).toBeVisible();
+  });
+
+  test('saves a live estimate and hides the forecast when the feed goes offline', async ({ page }) => {
+    await page.goto('/routines');
+    const forecast = page.getByRole('group', { name: 'Hourly US AQI forecast' });
+    await expect(forecast.getByRole('button', { name: /US AQI 124/ })).toBeVisible();
+
+    await page.route('**/*open-meteo.com/**', (route) => route.abort());
+    await page.reload();
+    await expect(page.getByText(/showing cached data/i)).toBeVisible();
+    await expect(page.getByText(/showing a saved current reading only/i)).toBeVisible();
+    await expect(forecast).toHaveCount(0);
+    await page.goto('/');
+    await expect(page.getByText('Cached Data', { exact: true })).toBeVisible();
+    await expect(page.getByText('172', { exact: true }).last()).toBeVisible();
   });
 
   test('renders 2D SVG fallback when WebGL fails', async ({ page }) => {
@@ -282,16 +306,18 @@ test.describe('Aura Behavior Verification Suite', () => {
   const routes = ['/', '/advisor', '/routines', '/hacks', '/community', '/impact', '/home'];
 
   for (const lang of languages) {
-    test(`crawls all routes in ${lang} with zero raw translation keys, console errors, or overflow`, async ({ page }) => {
+    test(`crawls all routes in ${lang} with zero raw translation keys, page errors, or overflow`, async ({ page }) => {
       const pageErrors = [];
       page.on('pageerror', (err) => pageErrors.push(err.message));
 
       await page.addInitScript((l) => {
-        localStorage.setItem('i18nextLng', l);
+        localStorage.setItem('aura_language', l);
       }, lang);
 
       for (const route of routes) {
         await page.goto(route);
+        await expect(page.locator('html')).toHaveAttribute('lang', lang);
+        await expect(page.getByRole('combobox', { name: 'Select Language' })).toHaveValue(lang);
         const main = page.locator('#main-content');
         await expect(main).toBeVisible();
 
@@ -299,7 +325,7 @@ test.describe('Aura Behavior Verification Suite', () => {
         expect(bodyText.length).toBeGreaterThan(30);
 
         // Assert no unrendered i18n key leaks (e.g. "ledger.daily_avoided", "hero.status_summary")
-        const keyLeakRegex = /\b(nav|hero|ledger|swaps|advisor|routines|hacks|community|impact|sanctuary|footer)\.[a-z0-9_]+/i;
+        const keyLeakRegex = /\b(nav|hero|ledger|swaps|advisor|routines|hacks|community|impact|sanctuary|footer|onboarding)\.[a-z0-9_]+/i;
         const leakMatch = bodyText.match(keyLeakRegex);
         expect(leakMatch, `Found unrendered translation key "${leakMatch?.[0]}" on route ${route} in ${lang}`).toBeNull();
 
@@ -321,32 +347,22 @@ test.describe('Aura Behavior Verification Suite', () => {
       await page.goto(route);
       await expect(page.locator('#main-content')).toBeVisible();
 
-      // Analyze page accessibility with axe-core
+      if (route === '/home') {
+        const scene = page.locator('.winter-smog-stage canvas');
+        const diagram = page.getByRole('region', { name: 'Illustrative air-pollution and home-filter diagram' });
+        await expect(scene.or(diagram)).toBeVisible();
+      }
+
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
 
-      const seriousOrCritical = results.violations.filter(
-        (v) => v.impact === 'serious' || v.impact === 'critical'
-      );
-
-      if (seriousOrCritical.length > 0) {
-        console.error(
-          `Accessibility violations on ${route}:`,
-          JSON.stringify(
-            seriousOrCritical.map((v) => ({
-              id: v.id,
-              impact: v.impact,
-              description: v.description,
-              nodes: v.nodes.map((n) => n.target)
-            })),
-            null,
-            2
-          )
-        );
-      }
-
-      expect(seriousOrCritical, `Found serious/critical a11y violations on ${route}`).toEqual([]);
+      const violations = results.violations.map(({ id, impact, nodes }) => ({
+        id,
+        impact,
+        offenders: nodes.map((node) => node.target)
+      }));
+      expect(violations).toEqual([]);
     });
   }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, Smartphone } from 'lucide-react';
+import { X, Smartphone } from 'lucide-react';
 
 export default function PwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -11,7 +11,7 @@ export default function PwaInstallPrompt() {
     try {
       count = Number(localStorage.getItem('aura_visit_count') || 0) + 1;
       localStorage.setItem('aura_visit_count', String(count));
-    } catch (e) {
+    } catch {
       count = 2; // fallback if localStorage blocked
     }
 

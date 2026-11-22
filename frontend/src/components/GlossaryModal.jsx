@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useId } from 'react';
+import Modal from './Modal';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export default function GlossaryModal({ isOpen, onClose }) {
+  const titleId = useId();
   const { t } = useTranslation();
   if (!isOpen) return null;
 
@@ -34,7 +36,7 @@ export default function GlossaryModal({ isOpen, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+    <Modal labelledBy={titleId} onClose={onClose} overlayClassName="fixed inset-0 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
       <div className="bg-[#FAF7F2] rounded-3xl border border-[#DDD5C7] max-w-2xl w-full p-6 sm:p-8 paper-shadow max-h-[90vh] overflow-y-auto space-y-6">
         
         {/* Header */}
@@ -44,7 +46,7 @@ export default function GlossaryModal({ isOpen, onClose }) {
               📖
             </div>
             <div>
-              <h2 className="text-xl font-bold font-serif-natural text-[#18261F]">
+              <h2 id={titleId} className="text-xl font-bold font-serif-natural text-[#18261F]">
                 {t('glossary.title', 'Air Quality & Inversion Glossary')}
               </h2>
               <p className="text-xs text-[#56685F]">
@@ -55,6 +57,7 @@ export default function GlossaryModal({ isOpen, onClose }) {
           <button
             onClick={onClose}
             className="p-1.5 rounded-full hover:bg-[#EAE4D8] text-[#56685F] transition"
+            data-initial-focus
             aria-label="Close glossary"
           >
             <X className="w-5 h-5" />
@@ -84,6 +87,6 @@ export default function GlossaryModal({ isOpen, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

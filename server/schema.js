@@ -54,7 +54,7 @@ export const AdviceRequestSchema = z.object({
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().max(1200)
-  }).strict()).max(40).optional(),
+  }).strict()).max(6).optional(),
   mock: z.boolean().optional(),
   stream: z.boolean().optional()
 }).strict();

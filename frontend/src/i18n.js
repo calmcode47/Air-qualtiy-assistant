@@ -12,6 +12,12 @@ const resources = {
   pa: { translation: pa }
 };
 
+if (typeof document !== 'undefined') {
+  i18n.on('languageChanged', (language) => {
+    document.documentElement.lang = language;
+  });
+}
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)

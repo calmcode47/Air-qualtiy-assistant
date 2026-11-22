@@ -207,7 +207,7 @@ export async function fetchAirData(location, signal) {
       // Storage can be unavailable in private browsing or when quota is full.
     }
     return result;
-  } catch (error) {
+  } catch {
     signal?.throwIfAborted();
 
     try {

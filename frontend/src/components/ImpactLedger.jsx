@@ -1,23 +1,32 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, CheckSquare, Info, Square } from 'lucide-react';
-import { calculateLedgerTotals } from '../utils/impactCalculator';
+import { calculateLedgerTotals, ledgerEntryDate, localDateKey } from '../utils/impactCalculator';
 import { SWAPS } from '../data/swaps';
 import HowWeWorkedThisOut from './HowWeWorkedThisOut';
 
-function localDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 export default function ImpactLedger() {
-  const todayDateStr = localDateKey();
+  const [today, setToday] = useState(() => new Date());
+  const todayDateStr = localDateKey(today);
+
+  useEffect(() => {
+    function refreshDay() {
+      const now = new Date();
+      setToday((previous) => localDateKey(previous) === localDateKey(now) ? previous : now);
+    }
+
+    const timer = setInterval(refreshDay, 60_000);
+    document.addEventListener('visibilitychange', refreshDay);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshDay);
+    };
+  }, []);
+
   const [choicesLog, setChoicesLog] = useState(() => {
     try {
       const saved = localStorage.getItem('aura_choices_log');
       const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed.slice(-2000) : [];
+      return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry?.swapId === 'string').slice(-2000) : [];
     } catch {
       return [];
     }
@@ -31,18 +40,26 @@ export default function ImpactLedger() {
     }
   }, [choicesLog]);
 
-  const totals = useMemo(() => calculateLedgerTotals({ log: choicesLog, targetDate: new Date() }), [choicesLog, todayDateStr]);
+  const totals = useMemo(() => calculateLedgerTotals({ log: choicesLog, targetDate: today }), [choicesLog, today]);
   const loggedToday = new Set(totals.todayEntries.map((entry) => entry.swapId));
 
-  const toggleChoice = (swapId) => {
+  function toggleChoice(swapId) {
+    const now = new Date();
+    const day = localDateKey(now);
+    setToday(now);
     setChoicesLog((previous) => {
-      const alreadyLogged = previous.some((entry) => entry.swapId === swapId && entry.date === todayDateStr);
-      if (alreadyLogged) return previous.filter((entry) => !(entry.swapId === swapId && entry.date === todayDateStr));
-      return [...previous, { swapId, date: todayDateStr, timestamp: Date.now() }].slice(-2000);
+      const matches = (entry) => entry.swapId === swapId && ledgerEntryDate(entry, day) === day;
+      if (previous.some(matches)) return previous.filter((entry) => !matches(entry));
+      return [...previous, { swapId, date: day, timestamp: now.getTime() }].slice(-2000);
     });
-  };
+  }
 
-  const clearToday = () => setChoicesLog((previous) => previous.filter((entry) => entry.date !== todayDateStr));
+  function clearToday() {
+    const now = new Date();
+    const day = localDateKey(now);
+    setToday(now);
+    setChoicesLog((previous) => previous.filter((entry) => ledgerEntryDate(entry, day) !== day));
+  }
 
   return (
     <div className="space-y-6">

@@ -1,13 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { isWebGLAvailable } from './AtmosphericSanctuaryTwin3D';
 import AtmosphericFallbackSVG from './AtmosphericFallbackSVG';
 
-describe('Prompt 7: 3D performance and fallbacks tests', () => {
-  it('detects WebGL availability and handles missing getContext gracefully', () => {
-    // In node/vitest environment without WebGL context, isWebGLAvailable returns false
-    const available = isWebGLAvailable();
-    expect(typeof available).toBe('boolean');
+describe('3D capability and 2D fallback', () => {
+  it('reports WebGL unavailable outside a browser', () => {
+    expect(isWebGLAvailable()).toBe(false);
   });
 
   it('verifies that AtmosphericFallbackSVG renders accessible 2D diagram when WebGL fails', () => {
@@ -35,18 +33,16 @@ describe('Prompt 7: 3D performance and fallbacks tests', () => {
     expect(childrenStr).toContain('420');
   });
 
-  it('verifies that deleted wrapper files do not exist', async () => {
-    const checkFile = async (path) => {
-      try {
-        await import(/* @vite-ignore */ path);
-        return true;
-      } catch (e) {
-        return false;
-      }
-    };
-
-    expect(await checkFile('./SanctuaryDiorama3D')).toBe(false);
-    expect(await checkFile('./AtmosphericSanctuaryDiorama')).toBe(false);
-    expect(await checkFile('./AirflowSimulator3D')).toBe(false);
+  it('keeps the 2D diagram usable when the location reading is missing', () => {
+    const element = AtmosphericFallbackSVG({
+      aqi: null,
+      purifierOn: false,
+      cityData: { name: 'Delhi NCR' },
+      webGlFailed: true
+    });
+    const content = JSON.stringify(element);
+    expect(content).toContain('2D Fallback Mode (WebGL Unavailable)');
+    expect(content).toContain('FILTER OFF');
+    expect(content).toContain('Unavailable');
   });
 });

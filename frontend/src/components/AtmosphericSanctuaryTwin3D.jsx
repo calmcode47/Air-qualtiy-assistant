@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import * as THREE from 'three';
+import React, { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three/src/Three.js';
+import './AtmosphericSanctuaryTwin3D.css';
 import AtmosphericFallbackSVG from './AtmosphericFallbackSVG';
 
 // US AQI bands used for the illustrative color scale.
@@ -30,7 +31,7 @@ export function isWebGLAvailable() {
       window.WebGLRenderingContext &&
       (canvas.getContext('webgl') || canvas.getContext('experimental-webgl'))
     );
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -43,40 +44,22 @@ function createRng(seed) {
 }
 
 export default function AtmosphericSanctuaryTwin3D({
-  outdoorAqi: initialOutdoorAqi = null,
+  outdoorAqi = null,
   fanSpeed = 'high',
   setFanSpeed,
   isNightMode = false,
-  setIsNightMode,
   cityData,
   height,
   showHeader = true,
   showPanel = true,
-  onAqiChange,
   isSimpleMode = true
 }) {
-  const startingAqi = initialOutdoorAqi == null || !Number.isFinite(Number(initialOutdoorAqi)) ? 100 : Number(initialOutdoorAqi);
-  const [aqi, setAqi] = useState(startingAqi);
-  const [purifierOn, setPurifierOn] = useState(fanSpeed !== 'off');
-  const [useFallback, setUseFallback] = useState(() => !isWebGLAvailable());
-  const [webGlFailed, setWebGlFailed] = useState(() => !isWebGLAvailable());
-
-  // Sync with external outdoorAqi if changed by parent
-  useEffect(() => {
-    if (initialOutdoorAqi != null && !isNaN(initialOutdoorAqi)) {
-      setAqi(Number(initialOutdoorAqi));
-    }
-  }, [initialOutdoorAqi]);
-
-  // Sync with external fanSpeed if changed by parent
-  useEffect(() => {
-    if (fanSpeed != null) {
-      setPurifierOn(fanSpeed !== 'off');
-    }
-  }, [fanSpeed]);
+  const [scenarioAqi, setScenarioAqi] = useState(null);
+  const aqi = scenarioAqi ?? Math.min(outdoorAqi ?? 100, 500);
+  const purifierOn = fanSpeed !== 'off';
+  const [fallbackReason, setFallbackReason] = useState(() => isWebGLAvailable() ? null : 'unavailable');
 
   const stageRef = useRef(null);
-  const canvasContainerRef = useRef(null);
 
   // Label refs for 3D-to-2D projected annotations
   const labelLidRef = useRef(null);
@@ -84,37 +67,23 @@ export default function AtmosphericSanctuaryTwin3D({
   const labelIndRef = useRef(null);
   const labelBurnRef = useRef(null);
 
-  // Mutable state ref for 60 FPS animation loop
-  const simStateRef = useRef({
-    aqi: startingAqi,
-    pur: fanSpeed !== 'off',
-    isSimpleMode
-  });
+  // The renderer reads the latest controls without rebuilding scene resources.
+  const sceneControls = useRef({ aqi, fanSpeed, isNightMode, isSimpleMode });
 
   useEffect(() => {
-    simStateRef.current.aqi = aqi;
-    simStateRef.current.pur = purifierOn;
-    simStateRef.current.isSimpleMode = isSimpleMode;
-  }, [aqi, purifierOn, isSimpleMode]);
+    sceneControls.current = { aqi, fanSpeed, isNightMode, isSimpleMode };
+  }, [aqi, fanSpeed, isNightMode, isSimpleMode]);
 
-  const handleAqiChange = (newVal) => {
-    const val = Number(newVal);
-    setAqi(val);
-    simStateRef.current.aqi = val;
-    if (onAqiChange) onAqiChange(val);
-  };
+  function handleAqiChange(value) {
+    setScenarioAqi(Number(value));
+  }
 
-  const handlePurifierToggle = (checked) => {
-    setPurifierOn(checked);
-    simStateRef.current.pur = checked;
-    if (setFanSpeed) {
-      setFanSpeed(checked ? 'high' : 'off');
-    }
-  };
+  function handlePurifierToggle(checked) {
+    setFanSpeed(checked ? 'high' : 'off');
+  }
 
-  // Setup Three.js scene
   useEffect(() => {
-    if (useFallback) return;
+    if (fallbackReason) return;
 
     const stage = stageRef.current;
     if (!stage) return;
@@ -199,8 +168,12 @@ export default function AtmosphericSanctuaryTwin3D({
       ren = new T.WebGLRenderer({ antialias: !isLowPowerDevice, alpha: true });
     } catch (err) {
       console.warn('WebGL init failed, switching to 2D SVG fallback:', err);
-      setWebGlFailed(true);
-      setUseFallback(true);
+      facadeTex.dispose();
+      softTex.dispose();
+      roadTex.dispose();
+      // Surface a renderer initialization failure as the accessible diagram.
+      // oxlint-disable-next-line react/set-state-in-effect
+      setFallbackReason('unavailable');
       return;
     }
 
@@ -221,15 +194,17 @@ export default function AtmosphericSanctuaryTwin3D({
 
     // Scene & Fog
     const scene = new T.Scene();
-    const BG = new T.Color('#0a0c10');
-    scene.background = BG.clone();
+    const dayBackground = new T.Color('#252C37');
+    const nightBackground = new T.Color('#0A0C10');
+    scene.background = dayBackground.clone();
     scene.fog = new T.FogExp2('#0a0c10', 0.008);
 
     // Camera
     const cam = new T.PerspectiveCamera(28, 1, 1, 600);
 
     // Lights
-    scene.add(new T.HemisphereLight(0xc6d0e0, 0x1a1d24, 0.75));
+    const ambientLight = new T.HemisphereLight(0xc6d0e0, 0x1a1d24, 0.75);
+    scene.add(ambientLight);
 
     const keyLight = new T.DirectionalLight(0xfff0dc, 1.2);
     keyLight.position.set(-35, 55, 25);
@@ -378,7 +353,7 @@ export default function AtmosphericSanctuaryTwin3D({
       airflowArrows.push({ arrow, origPos: pos.clone(), dir: upDir.clone(), isIntake: false });
     });
 
-    airflowGroup.visible = Boolean(simStateRef.current.pur);
+    airflowGroup.visible = sceneControls.current.fanSpeed !== 'off';
     scene.add(airflowGroup);
 
     // Industrial Sources
@@ -490,7 +465,7 @@ export default function AtmosphericSanctuaryTwin3D({
 
     // Vector projection helper for labels
     const wv = new T.Vector3();
-    function placeLabel(el, x, y, z, h1, h2) {
+    function placeLabel(el, x, y, z, title, subtitle) {
       if (!el) return;
       wv.set(x, y, z).project(cam);
       if (wv.z > 1) {
@@ -500,7 +475,9 @@ export default function AtmosphericSanctuaryTwin3D({
       el.style.display = 'block';
       el.style.left = ((wv.x + 1) / 2 * stage.clientWidth) + 'px';
       el.style.top = ((1 - wv.y) / 2 * stage.clientHeight) + 'px';
-      el.innerHTML = `${h1}<b>${h2}</b>`;
+      const [titleNode, subtitleNode] = el.children;
+      if (titleNode.textContent !== title) titleNode.textContent = title;
+      if (subtitleNode.textContent !== subtitle) subtitleNode.textContent = subtitle;
     }
 
     // Reduced motion check
@@ -525,7 +502,7 @@ export default function AtmosphericSanctuaryTwin3D({
       ly = e.clientY;
       try {
         domElement.setPointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch {}
       domElement.style.cursor = 'grabbing';
     };
 
@@ -541,7 +518,7 @@ export default function AtmosphericSanctuaryTwin3D({
       drag = false;
       try {
         domElement.releasePointerCapture(e.pointerId);
-      } catch (_) {}
+      } catch {}
       domElement.style.cursor = 'grab';
     };
 
@@ -576,7 +553,6 @@ export default function AtmosphericSanctuaryTwin3D({
     const mixColor = new T.Color();
     let H = 14;
     let tgtH = 14;
-    let dS = 0.001;
     let animId = null;
 
     // Visibility & Viewport Intersection tracking (Prompt 7 Task 2)
@@ -614,6 +590,8 @@ export default function AtmosphericSanctuaryTwin3D({
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
+    const airflowRates = { low: 1.8, med: 2.6, high: 3.5 };
+
     function frame() {
       animId = null;
       if (!isIntersecting || document.hidden) {
@@ -641,8 +619,8 @@ export default function AtmosphericSanctuaryTwin3D({
       const dt = Math.min(clk.getDelta(), 0.05);
       const t = clk.elapsedTime;
 
-      const currentAqi = simStateRef.current.aqi;
-      const isPur = simStateRef.current.pur;
+      const { aqi: currentAqi, fanSpeed: currentSpeed, isNightMode: isNight, isSimpleMode: useSimpleLabels } = sceneControls.current;
+      const isPur = currentSpeed !== 'off';
       const k = Math.min(1, currentAqi / 500);
       const b = getBand(currentAqi);
 
@@ -650,7 +628,10 @@ export default function AtmosphericSanctuaryTwin3D({
       H += (tgtH - H) * dt * 2;
 
       tint.set(b[2]);
-      mixColor.copy(BG).lerp(tint, k * 0.16);
+      const background = isNight ? nightBackground : dayBackground;
+      mixColor.copy(background).lerp(tint, k * 0.16);
+      ambientLight.intensity = isNight ? 0.3 : 0.75;
+      keyLight.intensity = isNight ? 0.45 : 1.2;
       scene.fog.color.lerp(mixColor, dt * 2);
       scene.background.copy(scene.fog.color);
       scene.fog.density += (0.006 + k * 0.014 - scene.fog.density) * dt * 2;
@@ -713,8 +694,9 @@ export default function AtmosphericSanctuaryTwin3D({
       airflowGroup.visible = isPur;
       if (isPur) {
         if (!prefersReducedMotion) {
+          const rate = airflowRates[currentSpeed];
           airflowArrows.forEach(({ arrow, origPos, dir, isIntake }, idx) => {
-            const pulse = Math.sin(t * 3.5 + idx * 1.3) * 0.15;
+            const pulse = Math.sin(t * rate + idx * 1.3) * 0.15;
             if (isIntake) {
               arrow.position.copy(origPos).addScaledVector(dir, pulse);
             } else {
@@ -736,19 +718,12 @@ export default function AtmosphericSanctuaryTwin3D({
       cam.lookAt(tg);
       cam.updateMatrixWorld();
 
-      // Project 3D labels
-      const isSimple = simStateRef.current.isSimpleMode;
-      if (isSimple) {
-        placeLabel(labelLidRef.current, -29, H, 29, 'POSSIBLE INVERSION LAYER', 'illustrative position');
-        placeLabel(labelHomeRef.current, 0, 6.2, 0, 'HOME FILTER CONCEPT', isPur ? 'FILTER ON' : 'FILTER OFF');
-        placeLabel(labelIndRef.current, -21, 9.5, -21, 'FACTORY SMOKE', 'SMOG SOURCE');
-        placeLabel(labelBurnRef.current, 21, 0.5, 21, 'CROP RESIDUE BURNING', 'SMOG SOURCE');
-      } else {
-        placeLabel(labelLidRef.current, -29, H, 29, 'POSSIBLE INVERSION LAYER', 'illustrative position');
-        placeLabel(labelHomeRef.current, 0, 6.2, 0, 'HOME FILTER CONCEPT', isPur ? 'FILTER ON' : 'FILTER OFF');
-        placeLabel(labelIndRef.current, -21, 9.5, -21, 'INDUSTRY', 'STACK EMISSIONS');
-        placeLabel(labelBurnRef.current, 21, 0.5, 21, 'BIOMASS BURNING', 'CROP RESIDUE');
-      }
+      placeLabel(labelLidRef.current, -29, H, 29, 'POSSIBLE INVERSION LAYER', 'illustrative position');
+      placeLabel(labelHomeRef.current, 0, 6.2, 0, 'HOME FILTER CONCEPT', isPur ? 'FILTER ON' : 'FILTER OFF');
+      placeLabel(labelIndRef.current, -21, 9.5, -21,
+        useSimpleLabels ? 'FACTORY SMOKE' : 'INDUSTRY', useSimpleLabels ? 'SMOG SOURCE' : 'STACK EMISSIONS');
+      placeLabel(labelBurnRef.current, 21, 0.5, 21,
+        useSimpleLabels ? 'CROP RESIDUE BURNING' : 'BIOMASS BURNING', useSimpleLabels ? 'SMOG SOURCE' : 'CROP RESIDUE');
 
       ren.render(scene, cam);
     }
@@ -793,11 +768,11 @@ export default function AtmosphericSanctuaryTwin3D({
       roadTex.dispose();
       ren.dispose();
     };
-  }, [useFallback]);
+  }, [fallbackReason]);
 
   const currentBand = getBand(aqi);
   // If WebGL failed or low-power mode chosen, show SVG fallback (Prompt 7 Task 4)
-  if (useFallback) {
+  if (fallbackReason) {
     return (
       <div className={`winter-smog-model-container w-full text-[#14161b] ${height === '100%' ? 'fill-height h-full' : ''}`}>
         <AtmosphericFallbackSVG
@@ -805,8 +780,8 @@ export default function AtmosphericSanctuaryTwin3D({
           purifierOn={purifierOn}
           cityData={cityData}
           isSimpleMode={isSimpleMode}
-          webGlFailed={webGlFailed}
-          onTry3D={isWebGLAvailable() ? () => setUseFallback(false) : null}
+          webGlFailed={fallbackReason === 'unavailable'}
+          onTry3D={fallbackReason === 'manual' ? () => setFallbackReason(null) : null}
         />
       </div>
     );
@@ -814,266 +789,10 @@ export default function AtmosphericSanctuaryTwin3D({
 
   return (
     <div className={`winter-smog-model-container w-full text-[#14161b] ${height === '100%' ? 'fill-height h-full' : ''}`}>
-      {/* Scoped CSS matching the reference model exact typography & layout */}
-      <style>{`
-        .winter-smog-model-container {
-          --bg: #f3f3f1;
-          --fg: #14161b;
-          --mute: #56685F;
-          --line: #d9d9d5;
-          --panel: #fbfbfa;
-          background-color: var(--bg);
-          padding: 16px;
-          border-radius: 16px;
-          font-family: Barlow, system-ui, sans-serif;
-          container-type: inline-size;
-        }
-        .winter-smog-hd {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          gap: 12px;
-          margin-bottom: 14px;
-          flex-wrap: wrap;
-        }
-        .winter-smog-hd h1 {
-          font-family: 'Bebas Neue', Impact, sans-serif;
-          font-weight: 400;
-          font-size: 38px;
-          letter-spacing: 2px;
-          margin: 0;
-          line-height: 1;
-          color: var(--fg);
-        }
-        .winter-smog-tag {
-          font-family: 'DM Mono', monospace;
-          font-size: 11px;
-          letter-spacing: 2px;
-          color: var(--mute);
-        }
-        .winter-smog-layout {
-          display: grid;
-          grid-template-columns: 1fr 300px;
-          gap: 14px;
-        }
-        @container (max-width: 860px) {
-          .winter-smog-layout {
-            grid-template-columns: 1fr;
-          }
-        }
-        @media (max-width: 860px) {
-          .winter-smog-layout {
-            grid-template-columns: 1fr;
-          }
-        }
-        .winter-smog-stage {
-          position: relative;
-          width: 100%;
-          min-height: 380px;
-          background: #0a0c10;
-          border: 1px solid var(--line);
-          border-radius: 6px;
-          overflow: hidden;
-        }
-        .winter-smog-model-container.fill-height {
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-        }
-        .winter-smog-stage.fill-height {
-          height: 100% !important;
-          min-height: 100% !important;
-          flex: 1 1 0%;
-        }
-        .winter-smog-stage.no-border {
-          border: none;
-          border-radius: inherit;
-        }
-        .winter-smog-stage canvas {
-          display: block;
-          width: 100%;
-          height: 100%;
-          touch-action: none;
-          cursor: grab;
-        }
-        .winter-smog-quick-pur {
-          position: absolute;
-          right: 14px;
-          bottom: 12px;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 1px;
-          padding: 6px 10px;
-          border-radius: 4px;
-          background: rgba(14, 17, 23, 0.85);
-          color: #cfd3da;
-          border: 1px solid rgba(255, 255, 255, 0.25);
-          cursor: pointer;
-          backdrop-filter: blur(4px);
-          transition: all 0.2s ease;
-          z-index: 10;
-        }
-        .winter-smog-quick-pur:hover {
-          background: rgba(26, 32, 42, 0.95);
-          border-color: rgba(255, 255, 255, 0.5);
-          color: #ffffff;
-        }
-        .winter-smog-dot {
-          width: 7px;
-          height: 7px;
-          border-radius: 50%;
-          background: #6c7079;
-          transition: all 0.2s ease;
-        }
-        .winter-smog-dot.active {
-          background: #4fc3ff;
-          box-shadow: 0 0 8px #4fc3ff;
-        }
-        .winter-smog-lb {
-          position: absolute;
-          pointer-events: auto;
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 1.4px;
-          color: #cfd3da;
-          white-space: nowrap;
-          transform: translate(10px, -50%);
-          padding: 2px 6px 2px 12px;
-          border-left: 1px solid rgba(255, 255, 255, 0.35);
-          line-height: 1.5;
-          cursor: default;
-          border-radius: 2px;
-        }
-        .winter-smog-lb:focus-visible {
-          outline: 2px solid #F3C474;
-          outline-offset: 3px;
-          background: rgba(20, 24, 34, 0.85);
-        }
-        .winter-smog-lb b {
-          display: block;
-          font-weight: 400;
-          color: #8b909a;
-        }
-        .winter-smog-lb:before {
-          content: "";
-          position: absolute;
-          left: -3px;
-          top: 50%;
-          width: 5px;
-          height: 5px;
-          margin-top: -2px;
-          border-radius: 50%;
-          background: #fff;
-        }
-        .winter-smog-hint {
-          position: absolute;
-          left: 14px;
-          bottom: 12px;
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 1.5px;
-          color: #6f7580;
-          pointer-events: none;
-        }
-        .winter-smog-panel {
-          background: var(--panel);
-          border: 1px solid var(--line);
-          border-radius: 6px;
-          padding: 18px;
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        .winter-smog-k {
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 2px;
-          color: var(--mute);
-        }
-        .winter-smog-aqi-n {
-          font-family: 'Bebas Neue', Impact, sans-serif;
-          font-size: 84px;
-          line-height: 0.9;
-        }
-        .winter-smog-band {
-          font-family: 'DM Mono', monospace;
-          font-size: 12px;
-          letter-spacing: 2px;
-        }
-        .winter-smog-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          border-top: 1px solid var(--line);
-          padding-top: 10px;
-        }
-        .winter-smog-row span:first-child {
-          font-size: 13px;
-          color: var(--mute);
-        }
-        .winter-smog-row span:last-child {
-          font-family: 'DM Mono', monospace;
-          font-size: 14px;
-        }
-        .winter-smog-tip {
-          font-size: 14px;
-          line-height: 1.5;
-        }
-        .winter-smog-panel input[type=range] {
-          width: 100%;
-          accent-color: var(--fg);
-          background: #D8D1C4;
-          cursor: pointer;
-        }
-        .winter-smog-sw {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-size: 14px;
-          cursor: pointer;
-        }
-        .winter-smog-chips {
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-        .winter-smog-chips button {
-          font: inherit;
-          font-family: 'DM Mono', monospace;
-          font-size: 10px;
-          letter-spacing: 1px;
-          background: transparent;
-          color: var(--fg);
-          border: 1px solid var(--line);
-          border-radius: 3px;
-          padding: 6px 9px;
-          cursor: pointer;
-          transition: border-color 0.15s ease, background-color 0.15s ease;
-        }
-        .winter-smog-chips button:hover {
-          border-color: var(--fg);
-          background: rgba(0,0,0,0.03);
-        }
-        .winter-smog-chips button.active-chip {
-          background: var(--fg);
-          color: #ffffff;
-          border-color: var(--fg);
-        }
-        .winter-smog-note {
-          font-size: 11px;
-          line-height: 1.5;
-          color: var(--mute);
-        }
-      `}</style>
-
       {/* Optional Top Title Header */}
       {showHeader && (
         <div className="winter-smog-hd">
-          <h1>URBAN AIR · WINTER SMOG MODEL</h1>
-          <div className="winter-smog-tag">TEMPERATURE INVERSION · HOME EXPOSURE</div>
+          <h2>Air pollution and home filtration</h2>
         </div>
       )}
 
@@ -1090,7 +809,7 @@ export default function AtmosphericSanctuaryTwin3D({
           {/* Low-Power 2D Mode Button (Prompt 7 Task 4) */}
           <button
             type="button"
-            onClick={() => setUseFallback(true)}
+            onClick={() => setFallbackReason('manual')}
             className="absolute top-3 right-3 z-10 bg-[#141822]/85 hover:bg-[#1f2636] text-[#D8E4DC] px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold transition border border-[#2D333F] flex items-center gap-1 shadow-sm"
             title="Switch to lightweight 2D diagram"
             aria-label="Switch to 2D view"
@@ -1112,7 +831,10 @@ export default function AtmosphericSanctuaryTwin3D({
             role="note"
             aria-label="Inversion Lid Layer"
             style={{ display: 'none' }}
-          />
+          >
+            <span />
+            <b />
+          </div>
           <div
             ref={labelHomeRef}
             className="winter-smog-lb"
@@ -1120,7 +842,10 @@ export default function AtmosphericSanctuaryTwin3D({
             role="note"
             aria-label="Your Home Air Quality"
             style={{ display: 'none' }}
-          />
+          >
+            <span />
+            <b />
+          </div>
           <div
             ref={labelIndRef}
             className="winter-smog-lb"
@@ -1128,7 +853,10 @@ export default function AtmosphericSanctuaryTwin3D({
             role="note"
             aria-label="Factory Stack Emissions"
             style={{ display: 'none' }}
-          />
+          >
+            <span />
+            <b />
+          </div>
           <div
             ref={labelBurnRef}
             className="winter-smog-lb"
@@ -1136,7 +864,10 @@ export default function AtmosphericSanctuaryTwin3D({
             role="note"
             aria-label="Biomass Smoke"
             style={{ display: 'none' }}
-          />
+          >
+            <span />
+            <b />
+          </div>
 
           {/* Quick Purifier Action Switch when full panel is hidden */}
           {!showPanel && (
@@ -1157,12 +888,7 @@ export default function AtmosphericSanctuaryTwin3D({
           <div className="winter-smog-panel">
             <div>
               <div className="winter-smog-k">ILLUSTRATIVE AQI SCENARIO</div>
-              <div
-                className="winter-smog-aqi-n"
-                style={{ color: currentBand[2] }}
-              >
-                {aqi}
-              </div>
+              <div className="winter-smog-aqi-n">{aqi}</div>
               <div
                 className="winter-smog-band"
                 style={{ color: '#18261F' }}
