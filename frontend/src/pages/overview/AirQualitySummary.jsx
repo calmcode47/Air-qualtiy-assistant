@@ -92,7 +92,7 @@ export default function AirQualitySummary({ onNavigate }) {
 
           <p className="text-xs sm:text-sm text-[#56685F] leading-relaxed">
             {cityData?.isLive
-              ? `Air-quality values are Open-Meteo model estimates for ${cityData.name}; this location forecast is not a street-level sensor reading. ${cityData.meteorologyNotes || ''}`
+              ? `Open-Meteo models air quality for ${cityData.name}. Conditions can vary from street to street.`
               : `Live data is unavailable for ${cityData?.name || 'this location'}. Wait for a current reading or check an official local advisory before making time-sensitive decisions.`}
           </p>
 

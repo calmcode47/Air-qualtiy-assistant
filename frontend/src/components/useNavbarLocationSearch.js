@@ -26,11 +26,9 @@ export default function useNavbarLocationSearch({ searchLocations, selectLocatio
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(6000)]);
-        const results = await searchLocations(searchQuery, signal);
+        const results = await searchLocations(searchQuery, controller.signal);
         if (!controller.signal.aborted) {
           setSearchResults(results);
-          setSearchError(signal.aborted);
         }
       } catch {
         if (!controller.signal.aborted) setSearchError(true);

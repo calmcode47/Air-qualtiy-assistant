@@ -1,11 +1,13 @@
+import { hasValidCoordinates } from './airData.js';
+
 export async function fetchNearbyGroundStation(location, signal) {
-  if (!Number.isFinite(location?.lat) || !Number.isFinite(location?.lon)) {
+  if (!hasValidCoordinates(location?.lat, location?.lon)) {
     return { status: 'unavailable' };
   }
 
   const params = new URLSearchParams({
-    lat: String(location.lat),
-    lon: String(location.lon)
+    lat: location.lat.toFixed(2),
+    lon: location.lon.toFixed(2)
   });
   try {
     const response = await fetch(`/api/monitor?${params}`, {

@@ -127,6 +127,7 @@ test.describe('Aura Behavior Verification Suite', () => {
   });
 
   test('saves a live estimate and hides the forecast when the feed goes offline', async ({ page }) => {
+    await page.clock.install();
     await page.goto('/routines');
     const forecast = page.getByRole('group', { name: 'Hourly US AQI forecast' });
     await expect(forecast.getByRole('button', { name: /US AQI 124/ })).toBeVisible();
@@ -139,6 +140,9 @@ test.describe('Aura Behavior Verification Suite', () => {
     await page.goto('/');
     await expect(page.getByText('Cached Data', { exact: true })).toBeVisible();
     await expect(page.getByText('172', { exact: true }).last()).toBeVisible();
+    await page.clock.fastForward(61 * 60 * 1000);
+    await expect(page.getByRole('banner').getByText('Data is 2h old (cached)')).toBeVisible();
+    await expect(page.getByRole('main').getByText('Data is 2h old (cached)')).toBeVisible();
   });
 
   test('renders 2D SVG fallback when WebGL fails', async ({ page }) => {
@@ -244,7 +248,11 @@ test.describe('Aura Behavior Verification Suite', () => {
     await page.getByRole('button', { name: 'Search city or locality' }).click();
     await expect(page.getByPlaceholder(/search/i)).toBeFocused();
     await page.getByPlaceholder(/search/i).fill('Mumbai');
+    const monitorRequest = page.waitForRequest((request) => new URL(request.url()).pathname === '/api/monitor');
     await page.getByRole('button', { name: /Mumbai Maharashtra/ }).click();
+    const stationQuery = new URL((await monitorRequest).url()).searchParams;
+    expect(stationQuery.get('lat')).toBe('19.08');
+    expect(stationQuery.get('lon')).toBe('72.88');
     await expect(page.getByRole('button', { name: /US AQI 124/ })).toBeVisible();
     await page.getByRole('button', { name: /US AQI 124/ }).click();
     await expect(page.getByRole('button', { name: /US AQI 124/ })).toHaveAttribute('aria-pressed', 'true');
@@ -288,7 +296,7 @@ test.describe('Aura Behavior Verification Suite', () => {
   test('keeps the loading state readable while the interactive scene is pending', async ({ page }) => {
     let releaseScene;
     const waitForRelease = new Promise((resolve) => { releaseScene = resolve; });
-    await page.route('**/AtmosphericSanctuaryTwin3D.jsx*', async (route) => {
+    await page.route(/\/assets\/AtmosphericSanctuaryTwin3D-[^/]+\.js$/u, async (route) => {
       await waitForRelease;
       await route.continue();
     });

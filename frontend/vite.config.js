@@ -48,6 +48,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
         globIgnores: [`**/{${sceneChunks.join(',')}}-*.js`],
+        navigateFallbackDenylist: [/^\/(?:api|assets)(?:[/?]|$)/u, /^[^?]*\./u],
         runtimeCaching: [
           {
             urlPattern: sceneChunkPattern,
@@ -99,6 +100,8 @@ export default defineConfig({
       provider: 'v8',
       allowExternal: true,
       include: [
+        'src/services/airData.js',
+        'src/services/advisor.js',
         resolve(projectRoot, 'shared/advice.mjs'),
         resolve(projectRoot, 'shared/adviceTemplates.mjs'),
         resolve(projectRoot, 'shared/aqi.mjs'),

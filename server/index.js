@@ -3,12 +3,13 @@ import dotenv from 'dotenv';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AdviceRequestSchema, AdviceResponseSchema } from './schema.js';
-import { groundAirContext } from './airContext.js';
-import { generateRuleBasedAdvice, isUrgentQuestion } from '../shared/advice.mjs';
+import { AdviceRequestSchema } from './schema.js';
+import { createAdviceService, DEFAULT_GEMINI_DAILY_LIMIT, parseGeminiDailyLimit } from './adviceService.js';
 import { createGeminiAdvisor } from './geminiAdvice.js';
 import { createGroundStationService } from './groundStations.js';
 import { safeError, structuredLog } from './logging.js';
+
+export { DEFAULT_GEMINI_DAILY_LIMIT, parseGeminiDailyLimit };
 
 const entry = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(entry), '..');
@@ -16,15 +17,9 @@ const projectRoot = path.resolve(path.dirname(entry), '..');
 const DEFAULT_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_TRACKED_CLIENTS = 10000;
-export const DEFAULT_GEMINI_DAILY_LIMIT = 10;
 
-export function parseGeminiDailyLimit(value) {
-  if (value === undefined || value.trim() === '') return DEFAULT_GEMINI_DAILY_LIMIT;
-  const limit = Number(value);
-  if (!Number.isSafeInteger(limit) || limit < 0) {
-    throw new Error('AURA_GEMINI_DAILY_LIMIT must be a non-negative integer.');
-  }
-  return limit;
+function parseCoordinate(value) {
+  return typeof value === 'string' && value.trim() ? Number(value) : NaN;
 }
 
 function hasValidEdgeToken(provided, expected) {
@@ -32,33 +27,6 @@ function hasValidEdgeToken(provided, expected) {
   const providedBytes = Buffer.from(provided);
   const expectedBytes = Buffer.from(expected);
   return providedBytes.length === expectedBytes.length && timingSafeEqual(providedBytes, expectedBytes);
-}
-
-function createDailyGeminiBudget(limit, now) {
-  let day = '';
-  let used = 0;
-
-  return {
-    reserve() {
-      const currentDay = new Date(now()).toISOString().slice(0, 10);
-      if (currentDay !== day) {
-        day = currentDay;
-        used = 0;
-      }
-      if (used >= limit) return null;
-
-      used += 1;
-      const reservedDay = day;
-      let released = false;
-      return {
-        release() {
-          if (released) return;
-          if (day === reservedDay) used -= 1;
-          released = true;
-        }
-      };
-    }
-  };
 }
 
 export function parseTrustProxyHops(value) {
@@ -113,46 +81,15 @@ function allowedOrigin(req, origin, allowedOrigins) {
   }
 }
 
-function sanitizedProviderError(error) {
-  let providerError;
-  if (typeof error?.message === 'string') {
-    try {
-      providerError = JSON.parse(error.message)?.error;
-    } catch {
-      providerError = null;
-    }
-  }
-  const message = typeof providerError?.message === 'string'
-    ? providerError.message
-      .replace(/AIza[\w-]{20,}/gu, '[API key removed]')
-      .replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/giu, '[email removed]')
-      .replace(/(?<!\d)(?:\+?\d[ .()-]*){10,15}(?!\d)/gu, '[phone removed]')
-      .slice(0, 240)
-    : undefined;
-  return {
-    name: typeof error?.name === 'string' ? error.name.slice(0, 100) : 'Error',
-    status: Number.isInteger(error?.status)
-      ? error.status
-      : Number.isInteger(providerError?.code) ? providerError.code : undefined,
-    code: typeof providerError?.status === 'string'
-      ? providerError.status.slice(0, 100)
-      : typeof error?.code === 'string' ? error.code.slice(0, 100) : undefined,
-    message
-  };
-}
-
 /**
- * @typedef {((input: any, options?: { signal?: AbortSignal }) => Promise<any>) & {
- *   model?: string, checkModel?: () => Promise<unknown>
- * }} Advisor
  * @typedef {object} CreateAppOptions
  * @property {boolean} [production]
  * @property {string[]} [origins]
  * @property {number | boolean} [trustProxy]
- * @property {Console | { info?: (line: string) => void, warn?: (line: string) => void, error?: (line: string) => void }} [logger]
+ * @property {import('./adviceService.js').Logger} [logger]
  * @property {typeof fetch} [groundStationFetch]
  * @property {() => number} [groundStationNow]
- * @property {Advisor | null} [advisor]
+ * @property {import('./adviceService.js').Advisor | null} [advisor]
  * @property {number} [geminiDailyLimit]
  * @property {string} [edgeToken]
  * @property {() => number} [now]
@@ -171,54 +108,12 @@ export function createApp({
   now = Date.now
 } = {}) {
   const app = express();
-  if (!Number.isSafeInteger(geminiDailyLimit) || geminiDailyLimit < 0) {
-    throw new Error('geminiDailyLimit must be a non-negative integer.');
-  }
   const allowedOrigins = new Set(origins);
   const json = express.json({ limit: '20kb', strict: true });
   const groundStations = createGroundStationService({ fetchImpl: groundStationFetch, now: groundStationNow });
-  const liveAdvisorEnabled = typeof advisor === 'function';
-  const geminiBudget = createDailyGeminiBudget(geminiDailyLimit, now);
-  const providerHealth = {
-    status: liveAdvisorEnabled ? 'checking' : 'disabled',
-    model: liveAdvisorEnabled && typeof advisor.model === 'string' ? advisor.model : null
-  };
-  let providerCheckStarted = false;
+  const adviceService = createAdviceService({ advisor, geminiDailyLimit, now, logger });
   let observedForwardedForEntries = null;
-
-  app.locals.runStartupModelCheck = async () => {
-    if (!liveAdvisorEnabled || typeof advisor.checkModel !== 'function' || providerCheckStarted) return;
-    providerCheckStarted = true;
-    const reservation = geminiBudget.reserve();
-    if (!reservation) {
-      providerHealth.status = 'skipped_daily_limit';
-      structuredLog(logger, 'warn', {
-        timestamp: new Date().toISOString(),
-        event: 'gemini_startup_check_skipped',
-        model: providerHealth.model,
-        reason: 'daily_limit_reached'
-      });
-      return;
-    }
-
-    try {
-      await advisor.checkModel();
-      providerHealth.status = 'ready';
-      structuredLog(logger, 'info', {
-        timestamp: new Date().toISOString(),
-        event: 'gemini_startup_check_succeeded',
-        model: providerHealth.model
-      });
-    } catch (error) {
-      providerHealth.status = 'unavailable';
-      structuredLog(logger, 'warn', {
-        timestamp: new Date().toISOString(),
-        event: 'gemini_startup_check_failed',
-        model: providerHealth.model,
-        error: sanitizedProviderError(error)
-      });
-    }
-  };
+  app.locals.runStartupModelCheck = adviceService.runStartupModelCheck;
 
   app.disable('x-powered-by');
   app.set('trust proxy', trustProxy);
@@ -239,7 +134,8 @@ export function createApp({
   app.use('/api', (req, res, next) => {
     res.set('Cache-Control', 'no-store');
     const isHealthCheck = req.method === 'GET' && req.path === '/health';
-    if (!isHealthCheck && edgeToken && !hasValidEdgeToken(req.get('x-aura-edge-token'), edgeToken)) {
+    res.locals.fromTrustedEdge = !edgeToken || hasValidEdgeToken(req.get('x-aura-edge-token'), edgeToken);
+    if (!isHealthCheck && !res.locals.fromTrustedEdge) {
       return res.status(403).json({ error: 'Request must come through the trusted application edge.' });
     }
     if (!allowedOrigin(req, req.get('origin'), allowedOrigins)) {
@@ -249,30 +145,23 @@ export function createApp({
   });
 
   app.get('/api/health', (req, res) => {
-    const forwardedForEntries = (req.get('x-forwarded-for') || '').split(',').map((entry) => entry.trim()).filter(Boolean).length;
-    if (observedForwardedForEntries === null) {
-      observedForwardedForEntries = forwardedForEntries;
-      structuredLog(logger, 'info', {
-        timestamp: new Date().toISOString(),
-        event: 'forwarded_ip_chain_observed',
-        forwardedForEntries,
-        configuredTrustProxy: trustProxy
-      });
-    } else if (forwardedForEntries !== observedForwardedForEntries) {
-      structuredLog(logger, 'warn', {
-        timestamp: new Date().toISOString(),
-        event: 'forwarded_ip_chain_changed',
-        previousForwardedForEntries: observedForwardedForEntries,
-        forwardedForEntries,
-        configuredTrustProxy: trustProxy
-      });
-      observedForwardedForEntries = forwardedForEntries;
+    if (res.locals.fromTrustedEdge) {
+      const forwardedForEntries = (req.get('x-forwarded-for') || '').split(',').filter((entry) => entry.trim()).length;
+      if (forwardedForEntries !== observedForwardedForEntries) {
+        const firstObservation = observedForwardedForEntries === null;
+        structuredLog(logger, firstObservation ? 'info' : 'warn', {
+          timestamp: new Date().toISOString(),
+          event: firstObservation ? 'forwarded_ip_chain_observed' : 'forwarded_ip_chain_changed',
+          previousForwardedForEntries: observedForwardedForEntries ?? undefined,
+          forwardedForEntries,
+          configuredTrustProxy: trustProxy
+        });
+        observedForwardedForEntries = forwardedForEntries;
+      }
     }
     res.json({
       status: 'ok',
-      assistantMode: liveAdvisorEnabled ? 'gemini-guidance' : 'local-guidance',
-      liveAdvisorEnabled,
-      provider: { ...providerHealth },
+      ...adviceService.getHealth(),
       proxyChain: {
         configuredTrustProxy: trustProxy,
         observedForwardedForEntries
@@ -280,19 +169,15 @@ export function createApp({
     });
   });
   app.get('/api/monitor', rateLimiter(20), async (req, res) => {
-    const latitude = Number(req.query.lat);
-    const longitude = Number(req.query.lon);
-    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90
-      || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-      return res.status(400).json({ status: 'invalid_request', error: 'Provide valid latitude and longitude.' });
-    }
     try {
-      const stationRequest = new AbortController();
-      res.once('close', () => {
-        if (!res.writableEnded) stationRequest.abort();
-      });
-      return res.json(await groundStations.getNearestStation(latitude, longitude, stationRequest.signal));
+      const station = await groundStations.getNearestStation(parseCoordinate(req.query.lat), parseCoordinate(req.query.lon));
+      if (res.destroyed) return;
+      if (station.status === 'invalid_request') {
+        return res.status(400).json({ status: station.status, error: 'Provide valid latitude and longitude.' });
+      }
+      return res.json(station);
     } catch (error) {
+      if (res.destroyed) return;
       structuredLog(logger, 'warn', {
         timestamp: new Date().toISOString(),
         event: 'ground_station_lookup_failed',
@@ -313,54 +198,16 @@ export function createApp({
     if (!result.success) {
       return res.status(400).json({ error: 'Invalid advice request. Check message, profile, language, history, and air data.' });
     }
-    const request = result.data;
-    const input = { ...request, airData: groundAirContext(request.airData) };
-    const urgent = isUrgentQuestion(request.message);
-    let advice;
-    let mode;
-    if (urgent) {
-      advice = generateRuleBasedAdvice(input);
-      mode = 'safety-guidance';
-    } else if (liveAdvisorEnabled) {
-      const reservation = geminiBudget.reserve();
-      if (!reservation) {
-        advice = generateRuleBasedAdvice(input);
-        mode = 'local-guidance';
-      } else {
-        const providerRequest = new AbortController();
-        res.once('close', () => {
-          if (!res.writableEnded) providerRequest.abort();
-        });
-        try {
-          advice = AdviceResponseSchema.parse(await advisor(input, { signal: providerRequest.signal }));
-          mode = 'gemini-guidance';
-        } catch (error) {
-          if (res.destroyed) return;
-          if (error?.code === 'ADVISOR_BUSY') {
-            reservation.release();
-          } else {
-            structuredLog(logger, 'warn', {
-              timestamp: new Date().toISOString(),
-              event: 'gemini_advice_failed',
-              requestId: req.requestId,
-              method: req.method,
-              path: req.path,
-              error: sanitizedProviderError(error)
-            });
-          }
-          advice = generateRuleBasedAdvice(input);
-          mode = 'local-guidance';
-        }
-      }
-    } else {
-      advice = generateRuleBasedAdvice(input);
-      mode = 'local-guidance';
-    }
+    const controller = new AbortController();
+    res.once('close', () => {
+      if (!res.writableEnded) controller.abort();
+    });
 
     try {
-      const validated = AdviceResponseSchema.parse(advice);
-      res.set('X-Aura-Advice-Mode', mode);
-      return res.json({ ...validated, mode });
+      const answer = await adviceService.answer(result.data, { signal: controller.signal, requestId: req.requestId });
+      if (res.destroyed) return;
+      res.set('X-Aura-Advice-Mode', answer.mode);
+      return res.json(answer);
     } catch (error) {
       if (!res.destroyed) return next(error);
     }
@@ -386,7 +233,7 @@ export function createApp({
     });
     app.use(express.static(dist, { index: false }));
     app.get('*', (req, res, next) => {
-      if (path.extname(req.path)) return next();
+      if (req.path.includes('.') || /^\/assets(?:\/|$)/u.test(req.path)) return next();
       res.set('Cache-Control', 'no-cache');
       return res.sendFile(path.join(dist, 'index.html'));
     });

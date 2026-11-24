@@ -50,7 +50,7 @@ Without `GEMINI_API_KEY`, advice is generated locally from the selected househol
 
 ### Deploy behind a reverse proxy
 
-Vercel sends `/api/*` requests through a serverless proxy that forwards Vercel's client IP and adds a shared secret. The proxy implementation lives outside the `api/` directory so Vercel exposes only the intended catch-all API function. Set the same randomly generated `AURA_EDGE_TOKEN` in Vercel and Render; Render rejects API calls without it, including direct requests to the public `onrender.com` URL. Set `AURA_TRUST_PROXY` on Render to the number of trusted proxy hops in front of Express. The health endpoint reports the observed `X-Forwarded-For` chain length, logs the first value seen, and warns if that length changes while the process is running. Check the value in deployment logs after changing the Vercel-to-Render route. Vercel overwrites incoming `X-Forwarded-For` with the observed client IP, which prevents callers from choosing their own rate-limit key. Configure a Google Cloud budget or spend-cap budget for the Gemini API project as a separate billing safeguard. See [Vercel request headers](https://vercel.com/docs/headers/request-headers), [Render's rate-limit notes](https://render.com/articles/how-render-handles-ddos-attacks), [Google Cloud budget alerts](https://cloud.google.com/billing/docs/how-to/budgets), and [spend-cap budgets](https://cloud.google.com/billing/docs/how-to/budgets-spend-caps).
+Vercel sends `/api/*` requests through a serverless proxy that forwards Vercel's client IP and adds a shared secret. The proxy implementation lives outside the `api/` directory so Vercel exposes only the intended catch-all API function. Set the same randomly generated `AURA_EDGE_TOKEN` in Vercel and Render; Render rejects API calls without it, including direct requests to the public `onrender.com` URL. Set `AURA_TRUST_PROXY` on Render to the number of trusted proxy hops in front of Express. The health endpoint reports the `X-Forwarded-For` chain length seen through the trusted edge, logs the first value seen, and warns if that length changes while the process is running. Check the value in deployment logs after changing the Vercel-to-Render route. Vercel overwrites incoming `X-Forwarded-For` with the observed client IP, which prevents callers from choosing their own rate-limit key. Configure a Google Cloud budget or spend-cap budget for the Gemini API project as a separate billing safeguard. See [Vercel request headers](https://vercel.com/docs/headers/request-headers), [Render's rate-limit notes](https://render.com/articles/how-render-handles-ddos-attacks), [Google Cloud budget alerts](https://cloud.google.com/billing/docs/how-to/budgets), and [spend-cap budgets](https://cloud.google.com/billing/docs/how-to/budgets-spend-caps).
 
 ## Decision logic
 
@@ -81,7 +81,7 @@ flowchart LR
 ```
 
 - `frontend/` contains routes, location and forecast handling, browser storage, and browser tests.
-- `server/` contains the HTTP API, local advice, optional Gemini integration, station-feed integration, schemas, and API tests.
+- `server/index.js` handles HTTP requests. The advice service selects local or Gemini guidance, and the station service validates and caches the shared CPCB feed.
 - `shared/` contains AQI bands, activity guidance, and the offline advisor used by both runtimes.
 
 ## Assumptions and privacy
@@ -104,7 +104,7 @@ npm --prefix frontend exec -- playwright install chromium
 npm run test:e2e
 ```
 
-Tests cover AQI boundaries, missing forecast points, optional weather failures, location search, household selection, conversational context, cache behavior, local advice, direct shared-advice and station-service rules, forecast-trend summaries, browser accessibility, and multilingual urgent guidance. Vitest enforces minimum coverage thresholds for shared advice and station-feed logic in CI. `npm run typecheck` checks the JSDoc-typed `shared/` and `server/` JavaScript modules. Playwright runs at mobile and desktop widths with deterministic air-feed fixtures, real browser storage, and the local API. It checks keyboard focus, both share-card sizes, language selection, and axe WCAG 2.0 and 2.1 A/AA rules. The GitHub workflow audits all lockfiles.
+Vitest enforces minimum coverage thresholds for the browser air-data and advisor services, shared advice, and station-feed logic. The type check also covers the browser service, shared, and server modules. Playwright runs against the production build at mobile and desktop widths, with deterministic air-feed fixtures, real browser storage, and the local API. It checks deep links, offline navigation, keyboard focus, both share-card sizes, language selection, and axe WCAG 2.0 and 2.1 A/AA rules. The GitHub workflow audits all lockfiles.
 
 ## Data and guidance sources
 

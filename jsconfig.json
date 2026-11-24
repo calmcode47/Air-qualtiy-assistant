@@ -15,8 +15,9 @@
   },
   "include": [
     "shared/**/*.mjs",
+    "frontend/src/services/*.js",
     "server/*.js",
     "server/*.cjs"
   ],
-  "exclude": ["**/node_modules/**", "server/**/*.test.js"]
+  "exclude": ["**/node_modules/**", "**/*.test.js"]
 }

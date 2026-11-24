@@ -1,5 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchAirData, getUsAqiCategory, DEFAULT_LOCATIONS } from './airData';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
+import { fetchAirData, getUsAqiCategory, searchLocations, DEFAULT_LOCATIONS } from './airData';
+
+afterEach(() => vi.unstubAllGlobals());
+
+it('keeps valid search results when the provider includes malformed places', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+    results: [null, { id: 1, name: 'Invalid', latitude: 99, longitude: 0 },
+      { id: 1275339, name: 'Mumbai', latitude: 19.076, longitude: 72.878 }]
+  })));
+
+  const places = await searchLocations('Mumbai');
+  expect(places).toHaveLength(1);
+  expect(places[0]).toMatchObject({ id: 'geo_1275339', name: 'Mumbai', lat: 19.076, lon: 72.878 });
+});
 
 describe('Open-Meteo US AQI categories', () => {
   it('uses the six US AQI health-concern bands', () => {

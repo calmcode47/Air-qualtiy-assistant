@@ -1,45 +1,41 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   fetchAirData,
+  getCachedReadingAgeHours,
+  hasValidCoordinates,
   searchLocations,
+  createEmptyReading,
   DEFAULT_LOCATIONS
 } from '../services/airData';
 import { fetchNearbyGroundStation } from '../services/groundStation';
 
 const AirContext = createContext(null);
+const LOCATION_STORAGE_KEY = 'aura_selected_location';
+const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const CACHE_AGE_INTERVAL_MS = 60 * 1000;
 
-function getInitialLocationData(location) {
-  return {
-    id: location?.id || 'custom',
-    name: location?.name || 'Selected location',
-    region: location?.region || 'Local coordinates',
-    aqi: null,
-    aqiSystem: 'US AQI',
-    category: 'Unavailable',
-    pm25: null,
-    pm10: null,
-    cleanestWindow: null,
-    diurnalHourly: [],
-    isLive: false,
-    isCached: false,
-    descriptor: 'Waiting for live or cached data'
-  };
+function roundCoordinate(value) {
+  return Number(value.toFixed(2));
+}
+
+function readSavedLocation() {
+  try {
+    const location = JSON.parse(localStorage.getItem(LOCATION_STORAGE_KEY));
+    if (typeof location?.id === 'string' && hasValidCoordinates(location.lat, location.lon)) {
+      if (!location.id.startsWith('loc_')) return location;
+      const lat = roundCoordinate(location.lat);
+      const lon = roundCoordinate(location.lon);
+      return { ...location, id: `loc_${lat}_${lon}`, lat, lon };
+    }
+  } catch {
+    // Ignore malformed preferences or blocked browser storage.
+  }
+  return DEFAULT_LOCATIONS.delhi;
 }
 
 export function AirProvider({ children }) {
-  const [initialLocation] = useState(() => {
-    try {
-      const saved = localStorage.getItem('aura_selected_location');
-      const location = saved ? JSON.parse(saved) : null;
-      if (location?.id?.startsWith?.('loc_') && Number.isFinite(location.lat) && Number.isFinite(location.lon)) {
-        return { ...location, lat: Math.round(location.lat * 100) / 100, lon: Math.round(location.lon * 100) / 100 };
-      }
-      if (location && typeof location.id === 'string' && Number.isFinite(location.lat) && Number.isFinite(location.lon)) return location;
-    } catch {}
-    return DEFAULT_LOCATIONS.delhi;
-  });
-
-  const [airData, setAirData] = useState(() => getInitialLocationData(initialLocation));
+  const [initialLocation] = useState(readSavedLocation);
+  const [airData, setAirData] = useState(() => createEmptyReading(initialLocation, 'Waiting for live or cached data'));
   const [groundStation, setGroundStation] = useState({ status: 'loading' });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +76,23 @@ export function AirProvider({ children }) {
     return () => activeRequest.current?.abort();
   }, [initialLocation, loadAirData]);
 
+  useEffect(() => {
+    if (!airData.isCached) return;
+    const updateAge = () => {
+      setAirData((current) => {
+        if (!current.isCached) return current;
+        const staleHours = getCachedReadingAgeHours(current.timestamp);
+        return staleHours === current.staleHours ? current : { ...current, staleHours };
+      });
+    };
+    const timer = window.setInterval(updateAge, CACHE_AGE_INTERVAL_MS);
+    document.addEventListener('visibilitychange', updateAge);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', updateAge);
+    };
+  }, [airData.isCached]);
+
   const refresh = useCallback(() => {
     setIsLoading(true);
     setError(null);
@@ -98,14 +111,14 @@ export function AirProvider({ children }) {
       refresh();
     };
     const refreshIfOlder = () => {
-      if (!document.hidden && navigator.onLine && Date.now() - (lastReadingAt || 0) >= 30 * 60 * 1000) {
+      if (!document.hidden && navigator.onLine && Date.now() - (lastReadingAt || 0) >= REFRESH_INTERVAL_MS) {
         refresh();
       }
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     document.addEventListener('visibilitychange', refreshIfOlder);
-    const timer = window.setInterval(refreshIfOlder, 30 * 60 * 1000);
+    const timer = window.setInterval(refreshIfOlder, REFRESH_INTERVAL_MS);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -116,7 +129,7 @@ export function AirProvider({ children }) {
 
   const selectLocation = useCallback((locationOrKey) => {
     const location = typeof locationOrKey === 'string' ? DEFAULT_LOCATIONS[locationOrKey] : locationOrKey;
-    if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lon)) return;
+    if (!location || !hasValidCoordinates(location.lat, location.lon)) return;
     locationAttempt.current += 1;
     if (latestLocation.current.id === location.id) {
       refresh();
@@ -124,11 +137,13 @@ export function AirProvider({ children }) {
     }
 
     latestLocation.current = location;
-    setAirData(getInitialLocationData(location));
+    setAirData(createEmptyReading(location, 'Waiting for live or cached data'));
     refresh();
     try {
-      localStorage.setItem('aura_selected_location', JSON.stringify(location));
-    } catch {}
+      localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location));
+    } catch {
+      // The selected location is still usable for this session.
+    }
   }, [refresh]);
 
   const requestCurrentLocation = useCallback(() => {
@@ -142,8 +157,8 @@ export function AirProvider({ children }) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         if (attempt !== locationAttempt.current) return;
-        const lat = Math.round(position.coords.latitude * 100) / 100;
-        const lon = Math.round(position.coords.longitude * 100) / 100;
+        const lat = roundCoordinate(position.coords.latitude);
+        const lon = roundCoordinate(position.coords.longitude);
         selectLocation({ id: `loc_${lat}_${lon}`, name: 'My Current Location', region: 'Approximate browser location', lat, lon });
       },
       () => {

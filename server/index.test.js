@@ -24,12 +24,7 @@ const stationFeed = {
 };
 
 function responseFor(data, status = 200) {
-  const body = JSON.stringify(data);
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => body
-  };
+  return Response.json(data, { status });
 }
 
 async function withServer(t, serverApp = app) {
@@ -83,6 +78,25 @@ test('Gemini daily limit parsing defaults safely and accepts zero or a positive 
   assert.equal(parseGeminiDailyLimit('250'), 250);
   assert.throws(() => parseGeminiDailyLimit('-1'), /non-negative integer/);
   assert.throws(() => parseGeminiDailyLimit('1.5'), /non-negative integer/);
+});
+
+test('public health checks do not replace the trusted edge observation', async (t) => {
+  const logLines = [];
+  const baseUrl = await withServer(t, createApp({
+    edgeToken: 'test-edge-token',
+    trustProxy: 2,
+    logger: { info: (line) => logLines.push(line), warn: (line) => logLines.push(line) }
+  }));
+
+  const trusted = await fetch(`${baseUrl}/health`, {
+    headers: { 'X-Aura-Edge-Token': 'test-edge-token', 'X-Forwarded-For': '198.51.100.1, 203.0.113.1' }
+  });
+  assert.equal((await trusted.json()).proxyChain.observedForwardedForEntries, 2);
+
+  const probe = await fetch(`${baseUrl}/health`);
+  assert.equal(probe.status, 200);
+  assert.equal((await probe.json()).proxyChain.observedForwardedForEntries, 2);
+  assert.equal(logLines.length, 1);
 });
 
 test('startup model check reports provider availability through health and logs failures', async (t) => {
@@ -421,9 +435,11 @@ test('ground-monitor lookup skips null and older-than-six-hour readings and uses
 
 test('ground-monitor route validates coordinates and reports unsupported regions', async (t) => {
   const baseUrl = await withServer(t, createApp({ groundStationFetch: async () => { throw new Error('should not fetch'); } }));
-  const invalid = await fetch(`${baseUrl}/monitor?lat=100&lon=77`);
-  assert.equal(invalid.status, 400);
-  assert.equal((await invalid.json()).status, 'invalid_request');
+  for (const query of ['lat=100&lon=77', 'lat=&lon=77', 'lat=28.61&lat=28.62&lon=77', 'lon=77']) {
+    const invalid = await fetch(`${baseUrl}/monitor?${query}`);
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).status, 'invalid_request');
+  }
   const unsupported = await fetch(`${baseUrl}/monitor?lat=40.7&lon=-74`);
   assert.equal(unsupported.status, 200);
   assert.equal((await unsupported.json()).status, 'unsupported_region');

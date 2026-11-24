@@ -7,12 +7,14 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:3000',
-    headless: true
+    baseURL: 'http://localhost:3001',
+    headless: true,
+    serviceWorkers: 'block'
   },
   webServer: {
-    command: 'npm --prefix .. run dev',
-    url: 'http://localhost:3000',
+    command: 'npm --prefix .. start',
+    url: 'http://localhost:3001',
+    env: { PORT: '3001', GEMINI_API_KEY: '', AURA_EDGE_TOKEN: '' },
     reuseExistingServer: false,
     timeout: 30000
   },

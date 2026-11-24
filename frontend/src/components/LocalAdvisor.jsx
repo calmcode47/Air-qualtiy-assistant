@@ -4,22 +4,10 @@ import { HOUSEHOLD_PERSONAS } from '../data/householdPersonas';
 import { PERSONA_PRESETS, useProfile } from '../store/profile';
 import i18n from '../i18n';
 import { useSearchParams } from 'react-router-dom';
-import { generateRuleBasedAdvice, isUrgentQuestion } from '../../../shared/advice.mjs';
-import HowWeWorkedThisOut from './HowWeWorkedThisOut';
+import { ADVICE_QUESTION_LIMIT, createAdviceInput, requestAdvice } from '../services/advisor';
+import AdviceReply from './AdviceReply';
 
 const COMMUNITY_PROMPT = 'Suggest practical lower-emission options for commuting and community activities.';
-const MODE_LABEL_KEYS = {
-  'local-guidance': 'advisor.mode_local',
-  'safety-guidance': 'advisor.mode_safety',
-  'gemini-guidance': 'advisor.mode_gemini'
-};
-
-function adviceForDisplay(advice) {
-  if (!advice || typeof advice.summary !== 'string' || !Array.isArray(advice.recommendations)) {
-    throw new Error('The assistant returned an invalid response.');
-  }
-  return advice;
-}
 
 export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
   const { profile } = useProfile();
@@ -52,61 +40,6 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
       ? `Cached estimate${cityData.staleHours ? ` · ${cityData.staleHours}h old` : ''}`
       : 'Reading unavailable';
 
-  const renderAdvice = (advice, mode, responseLanguage = language) => {
-    const safeAdvice = adviceForDisplay(advice);
-    const responseMode = i18n.t(MODE_LABEL_KEYS[mode] || MODE_LABEL_KEYS['local-guidance'], { lng: responseLanguage });
-    return (
-      <div className="space-y-3.5 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full border border-[#CCE0D4] bg-[#EAF2ED] px-2 py-1 text-[10px] font-bold text-[#315E48]">
-            <CheckCircle2 className="w-3 h-3" />
-            {responseMode}
-          </span>
-          <span className="text-[10px] text-[#56685F]">{i18n.t('advisor.educational_notice', { lng: responseLanguage })}</span>
-        </div>
-
-        {mode === 'local-guidance' && responseLanguage !== 'en' && (
-          <p className="rounded-lg border border-[#DFD6CB] bg-[#FAF7F2] px-3 py-2 text-[11px] text-[#53645C]" role="status">
-            {i18n.t('advisor_notice.local_language', { lng: responseLanguage })}
-          </p>
-        )}
-
-        <p className="font-semibold text-sm font-serif-natural text-[#1A2922] leading-relaxed">{safeAdvice.summary}</p>
-
-        <div className="space-y-2.5">
-          {safeAdvice.recommendations.map((recommendation) => (
-            <article key={recommendation.id} className="bg-white p-4 rounded-2xl border border-[#E6DED6] space-y-2.5 shadow-2xs">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#3D6B56] shrink-0 mt-0.5" />
-                <h3 className="font-bold text-xs text-[#1A2922]">{recommendation.title}</h3>
-              </div>
-              <p className="text-[#1A2922] font-medium leading-relaxed">{recommendation.action}</p>
-              <p className="text-[#53645C] text-[11px] leading-relaxed"><strong className="text-[#1A2922]">{i18n.t('advisor.why', { lng: responseLanguage })}</strong> {recommendation.why}</p>
-              <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#DFD6CB] text-xs">
-                <strong className="text-[#315E48]">{i18n.t('advisor.direct_impact', { lng: responseLanguage })}</strong>{' '}
-                <span className="text-[#1A2922]">{recommendation.impact?.value} — {recommendation.impact?.unit}</span>
-              </div>
-              {recommendation.assumptions?.length > 0 && (
-                <HowWeWorkedThisOut
-                  title={recommendation.title}
-                  formula={i18n.t('advisor.formula', { lng: responseLanguage })}
-                  assumptions={recommendation.assumptions}
-                  confidence={recommendation.impact?.confidence || 'low'}
-                  source={i18n.t('advisor.source', { lng: responseLanguage })}
-                  buttonLabel={i18n.t('advisor.limits', { lng: responseLanguage })}
-                />
-              )}
-            </article>
-          ))}
-        </div>
-
-        {safeAdvice.followUp && (
-          <p className="bg-[#FAF7F2] p-3 rounded-xl border border-[#DFD6CB] text-[#53645C] text-xs leading-relaxed">{safeAdvice.followUp}</p>
-        )}
-      </div>
-    );
-  };
-
   const handlePersonaSelect = (personaId) => {
     if (isGenerating || personaId === selectedPersonaId) return;
     setSelectedPersonaId(personaId);
@@ -114,56 +47,23 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
   };
 
   const processQuery = async (rawText) => {
-    const message = rawText.trim().slice(0, 600);
-    if (!message || isGenerating) return;
+    const message = rawText.trim().slice(0, ADVICE_QUESTION_LIMIT);
+    if (!message || pendingRequest.current) return;
 
-    if (pendingRequest.current) return;
     const controller = new AbortController();
     pendingRequest.current = controller;
-    const priorHistory = chatHistory.slice(-6).map((item) => ({
-      role: item.sender === 'user' ? 'user' : 'assistant',
-      content: (item.text || [
-        item.advice.summary,
-        ...item.advice.recommendations.map((recommendation) => recommendation.action)
-      ].join(' ')).slice(0, 1200)
-    }));
+    const input = createAdviceInput({ message, householdProfile, cityData, groundMonitor, language, chatHistory });
     setChatHistory((previous) => [...previous, { sender: 'user', text: message }]);
     setIsGenerating(true);
 
-    const { name, aqi, pm25, isLive, isCached, staleHours, cleanestWindow, cleanestWindowPeakAqi } = cityData || {};
-    const airData = { name, aqi, pm25, isLive, isCached, staleHours, cleanestWindow, cleanestWindowPeakAqi };
-    const { adults, children, elderly, conditions, commute, cookingFuel, homeType, purifierOwned, monthlyBudgetBand } = householdProfile;
-    const input = {
-      message,
-      profile: { adults, children, elderly, conditions, commute, cookingFuel, homeType, purifierOwned, monthlyBudgetBand },
-      airData,
-      groundMonitor: groundMonitor?.status === 'available' ? groundMonitor : undefined,
-      language,
-      history: priorHistory
-    };
-    const addAdvice = (advice, mode) => {
-      setChatHistory((previous) => [...previous, { sender: 'aura', advice, mode, language }]);
-    };
-
     try {
-      if (isUrgentQuestion(message)) {
-        addAdvice(generateRuleBasedAdvice(input), 'safety-guidance');
-        return;
+      const reply = await requestAdvice(input, controller.signal);
+      if (reply && !controller.signal.aborted) {
+        const { advice, mode } = reply;
+        setChatHistory((previous) => [...previous, { sender: 'aura', advice, mode, language }]);
       }
-      const response = await fetch('/api/advice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(35000)]),
-        body: JSON.stringify(input)
-      });
-      if (!response.ok) throw new Error('Advice service unavailable.');
-      controller.signal.throwIfAborted();
-      const { mode, ...advice } = await response.json();
-      addAdvice(adviceForDisplay(advice), mode);
-    } catch {
-      if (!controller.signal.aborted) addAdvice(generateRuleBasedAdvice(input), 'local-guidance');
     } finally {
-      if (pendingRequest.current === controller) pendingRequest.current = null;
+      pendingRequest.current = null;
       if (!controller.signal.aborted) {
         setIsGenerating(false);
       }
@@ -260,7 +160,9 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
             <div key={`${item.sender}-${index}`} className="flex items-start gap-3">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${item.sender === 'aura' ? 'bg-[#1A2922] text-[#FAF7F2]' : 'bg-[#D6B33F] text-[#18261F]'}`} aria-hidden="true">{item.sender === 'aura' ? 'A' : 'You'}</div>
               <div className="min-w-0 break-words flex-1 space-y-1 text-xs leading-relaxed text-[#1A2922]">
-                {item.sender === 'user' ? <p className="font-medium">{item.text}</p> : renderAdvice(item.advice, item.mode, item.language)}
+                {item.sender === 'user'
+                  ? <p className="font-medium">{item.text}</p>
+                  : <AdviceReply advice={item.advice} mode={item.mode} language={item.language} />}
               </div>
             </div>
           ))}
@@ -278,9 +180,9 @@ export default function LocalAdvisor({ cityData, outdoorAqi, groundMonitor }) {
             value={inputQuestion}
             onChange={(event) => setInputQuestion(event.target.value)}
             disabled={isGenerating}
-            maxLength={600}
+            maxLength={ADVICE_QUESTION_LIMIT}
             aria-label="Ask the air-quality assistant"
-            placeholder={`Ask about ${cityData?.name || 'your area'}, home air, or commuting (max 600 characters)`}
+            placeholder={`Ask about ${cityData?.name || 'your area'}, home air, or commuting (max ${ADVICE_QUESTION_LIMIT} characters)`}
             className="min-w-0 flex-1 bg-[#FAF7F2] border border-[#DFD6CB] rounded-xl px-4 py-3 text-xs text-[#1A2922] placeholder-[#56685F] focus:outline-none focus:ring-1 focus:ring-[#1A2922] disabled:opacity-50"
           />
           <button data-testid="advisor-submit" type="submit" disabled={isGenerating || !inputQuestion.trim()} className="bg-[#1A2922] disabled:opacity-50 text-[#FAF7F2] px-5 py-3 rounded-xl text-xs font-semibold hover:bg-[#2B3F35] transition flex items-center gap-1.5 shrink-0">

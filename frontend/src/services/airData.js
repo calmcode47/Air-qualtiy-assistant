@@ -7,8 +7,6 @@ export { getUsAqiCategory };
  * AQI values come from Open-Meteo's US AQI variables, which include pollutant
  * averaging rules. PM values remain modelled concentration estimates.
  */
-
-
 export const DEFAULT_LOCATIONS = {
   delhi: {
     id: 'delhi',
@@ -45,6 +43,101 @@ export const DEFAULT_LOCATIONS = {
 };
 
 const HOUR_SECONDS = 3600;
+const AQI_SYSTEM = 'US AQI';
+const AIR_ENDPOINT = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+const WEATHER_ENDPOINT = 'https://api.open-meteo.com/v1/forecast';
+const GEOCODING_ENDPOINT = 'https://geocoding-api.open-meteo.com/v1/search';
+
+function locationDetails(location) {
+  return {
+    id: location.id || 'custom',
+    name: location.name || 'Selected location',
+    region: location.region || 'Local coordinates',
+    country: location.country,
+    country_code: location.country_code
+  };
+}
+
+export function createEmptyReading(location, descriptor = 'Live air-quality data unavailable') {
+  return {
+    ...locationDetails(location),
+    aqi: null,
+    aqiSystem: AQI_SYSTEM,
+    category: 'Unavailable',
+    descriptor,
+    pm25: null,
+    pm10: null,
+    observedAt: null,
+    tempC: null,
+    humidity: null,
+    windSpeed: null,
+    cleanestWindow: null,
+    cleanestWindowPeakAqi: null,
+    diurnalHourly: [],
+    timestamp: null,
+    isLive: false,
+    isCached: false,
+    isFallback: false
+  };
+}
+
+export function getCachedReadingAgeHours(savedAt, now = Date.now()) {
+  return Math.max(1, Math.ceil((now - savedAt) / (HOUR_SECONDS * 1000)));
+}
+
+function getCacheKey(location) {
+  const identity = location.id || `${Number(location.lat).toFixed(2)}_${Number(location.lon).toFixed(2)}`;
+  return `aura_air_cache_${identity}`;
+}
+
+function readCachedAirData(location) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(getCacheKey(location)));
+    const now = Date.now();
+    const savedAt = Number(saved?.timestamp);
+    const aqi = normalizeAqi(saved?.aqi);
+    if (saved?.aqiSystem !== AQI_SYSTEM || aqi === null
+      || !Number.isFinite(savedAt) || savedAt <= 0 || savedAt > now) return null;
+
+    return {
+      ...createEmptyReading(location, 'Cached Open-Meteo model estimate'),
+      aqi,
+      category: getUsAqiCategory(aqi),
+      pm25: concentration(saved.pm25),
+      pm10: concentration(saved.pm10),
+      timezone: usableTimeZone(saved.timezone),
+      timestamp: savedAt,
+      isCached: true,
+      staleHours: getCachedReadingAgeHours(savedAt, now)
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveAirData(location, reading) {
+  try {
+    localStorage.setItem(getCacheKey(location), JSON.stringify({
+      aqiSystem: reading.aqiSystem,
+      aqi: reading.aqi,
+      pm25: reading.pm25,
+      pm10: reading.pm10,
+      timezone: reading.timezone,
+      timestamp: reading.timestamp
+    }));
+  } catch {
+    // The forecast is still usable when storage is blocked or full.
+  }
+}
+
+export function hasValidCoordinates(lat, lon) {
+  return Number.isFinite(lat) && Math.abs(lat) <= 90
+    && Number.isFinite(lon) && Math.abs(lon) <= 180;
+}
+
+function dateFromEpochSeconds(value) {
+  return Number.isFinite(value) && Math.abs(value) <= 8.64e12 ? value * 1000 : null;
+}
 
 function concentration(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -57,23 +150,30 @@ function forecastPoints(hourly, currentTime) {
 
   return hourly.time.flatMap((time, index) => {
     const aqi = normalizeAqi(hourly.us_aqi?.[index]);
-    if (!Number.isFinite(time) || time <= currentTime || time > currentTime + 24 * HOUR_SECONDS || aqi === null) {
+    if (dateFromEpochSeconds(time) === null || time <= currentTime || time > currentTime + 24 * HOUR_SECONDS || aqi === null) {
       return [];
     }
     return [{ time, aqi, pm25: concentration(hourly.pm2_5?.[index]) }];
   });
 }
 
-function forecastFormatters(timeZone) {
-  const options = { timeZone, hour: 'numeric', minute: '2-digit' };
+function usableTimeZone(value) {
+  if (typeof value !== 'string') return 'UTC';
   try {
-    return {
-      hour: new Intl.DateTimeFormat('en-US', options),
-      full: new Intl.DateTimeFormat('en-US', { ...options, month: 'short', day: 'numeric', timeZoneName: 'short' })
-    };
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return value;
   } catch {
-    return forecastFormatters('UTC');
+    return 'UTC';
   }
+}
+
+function forecastFormatters(timeZone) {
+  /** @type {Intl.DateTimeFormatOptions} */
+  const options = { timeZone, hour: 'numeric', minute: '2-digit' };
+  return {
+    hour: new Intl.DateTimeFormat('en-US', options),
+    full: new Intl.DateTimeFormat('en-US', { ...options, month: 'short', day: 'numeric', timeZoneName: 'short' })
+  };
 }
 
 function findLowerPollutionWindow(points, currentTime, currentAqi, formatter) {
@@ -94,16 +194,24 @@ function findLowerPollutionWindow(points, currentTime, currentAqi, formatter) {
   return { label, peak: best.peak };
 }
 
+async function getJson(endpoint, params, signal, timeoutMs) {
+  const deadline = AbortSignal.timeout(timeoutMs);
+  const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  const response = await fetch(`${endpoint}?${new URLSearchParams(params)}`, { signal: requestSignal });
+  if (!response.ok) throw new Error(`Open-Meteo returned HTTP ${response.status}`);
+  return response.json();
+}
+
 /** Search locations through Open-Meteo's public geocoding API. */
-export async function searchLocations(query, signal) {
-  if (!query || query.trim().length < 2) return [];
-  try {
-    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=5&language=en&format=json`;
-    const response = await fetch(url, { signal });
-    if (!response.ok) throw new Error(`Geocoding HTTP error ${response.status}`);
-    const data = await response.json();
-    if (!Array.isArray(data?.results)) return [];
-    return data.results.map((item) => ({
+export async function searchLocations(query = '', signal) {
+  const name = query.trim();
+  if (name.length < 2) return [];
+  const data = await getJson(GEOCODING_ENDPOINT, { name, count: '5', language: 'en', format: 'json' }, signal, 6000);
+  if (!Array.isArray(data?.results)) return [];
+  return data.results.flatMap((item) => {
+    if (!Number.isInteger(item?.id) || typeof item.name !== 'string' || !item.name.trim()
+      || !hasValidCoordinates(item.latitude, item.longitude)) return [];
+    return [{
       id: `geo_${item.id}`,
       name: item.name,
       region: [item.admin1, item.country].filter(Boolean).join(', '),
@@ -111,158 +219,71 @@ export async function searchLocations(query, signal) {
       country_code: item.country_code,
       lat: item.latitude,
       lon: item.longitude
-    }));
-  } catch (error) {
-    if (!signal?.aborted) throw error;
-    return [];
-  }
+    }];
+  });
 }
 
-/** Fetch current model estimates, a 24-hour hourly trend, and weather context. */
-export async function fetchAirData(location, signal) {
-  const cacheLocation = location.id || `${Number(location.lat).toFixed(2)}_${Number(location.lon).toFixed(2)}`;
-  const cacheKey = `aura_air_cache_${cacheLocation}`;
+function normalizeReading(location, airData, weather) {
+  const current = airData?.current ?? {};
+  const aqi = normalizeAqi(current.us_aqi);
+  if (aqi === null) throw new Error('Open-Meteo did not return a valid current US AQI');
 
-  try {
-    const airParams = new URLSearchParams({
-      latitude: String(location.lat),
-      longitude: String(location.lon),
-      current: 'pm2_5,pm10,us_aqi',
-      hourly: 'pm2_5,us_aqi',
-      forecast_days: '2',
-      timeformat: 'unixtime',
-      timezone: 'auto'
-    });
-    const weatherParams = new URLSearchParams({
-      latitude: String(location.lat),
-      longitude: String(location.lon),
-      current: 'temperature_2m,relative_humidity_2m,wind_speed_10m',
-      timezone: 'auto'
-    });
+  const timezone = usableTimeZone(airData.timezone);
+  const formatters = forecastFormatters(timezone);
+  const observedAt = dateFromEpochSeconds(current.time);
+  const points = observedAt === null ? [] : forecastPoints(airData.hourly ?? {}, current.time);
+  const lowerWindow = findLowerPollutionWindow(points, current.time, aqi, formatters.full);
+  const category = getUsAqiCategory(aqi);
+  const windKph = concentration(weather?.wind_speed_10m);
 
-    const airSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000);
-    const weatherTimeout = AbortSignal.timeout(3500);
-    const weatherSignal = signal ? AbortSignal.any([signal, weatherTimeout]) : weatherTimeout;
-    const weatherRequest = fetch(`https://api.open-meteo.com/v1/forecast?${weatherParams}`, { signal: weatherSignal })
-      .then((response) => response.ok ? response.json() : null)
-      .catch(() => null);
-    const airResponse = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${airParams}`, { signal: airSignal });
-    if (!airResponse.ok) throw new Error(`Air Quality HTTP error ${airResponse.status}`);
-
-    const airData = await airResponse.json();
-    const current = airData.current || {};
-    const aqi = normalizeAqi(current.us_aqi);
-    if (aqi === null) throw new Error('Open-Meteo did not return a valid current US AQI');
-
-    const timezone = typeof airData.timezone === 'string' ? airData.timezone : 'UTC';
-    const formatters = forecastFormatters(timezone);
-    const points = forecastPoints(airData.hourly || {}, current.time);
-    const lowerWindow = findLowerPollutionWindow(points, current.time, aqi, formatters.full);
-    const diurnalHourly = points.map(({ time, aqi, pm25 }) => ({
+  return {
+    ...createEmptyReading(location, `${category} • Open-Meteo model estimate`),
+    timezone,
+    aqi,
+    category,
+    pm25: concentration(current.pm2_5),
+    pm10: concentration(current.pm10),
+    observedAt,
+    tempC: Number.isFinite(weather?.temperature_2m) ? Math.round(weather.temperature_2m) : null,
+    humidity: Number.isFinite(weather?.relative_humidity_2m) ? Math.round(weather.relative_humidity_2m) : null,
+    windSpeed: windKph === null ? null : `${(windKph / 3.6).toFixed(1)} m/s`,
+    cleanestWindow: lowerWindow?.label ?? null,
+    cleanestWindowPeakAqi: lowerWindow?.peak ?? null,
+    diurnalHourly: points.map(({ time, aqi, pm25 }) => ({
       time,
       hour: formatters.hour.format(time * 1000),
       dateLabel: formatters.full.format(time * 1000),
       aqi,
       pm25,
       label: getUsAqiCategory(aqi)
-    }));
-    const weather = (await weatherRequest)?.current || {};
-    const tempC = Number.isFinite(weather.temperature_2m) ? Math.round(weather.temperature_2m) : null;
-    const humidity = Number.isFinite(weather.relative_humidity_2m) ? Math.round(weather.relative_humidity_2m) : null;
-    const windKph = concentration(weather.wind_speed_10m);
+    })),
+    timestamp: Date.now(),
+    isLive: true
+  };
+}
+
+/** Fetch current model estimates, a 24-hour hourly trend, and weather context. */
+export async function fetchAirData(location, signal) {
+  const coordinates = { latitude: String(location.lat), longitude: String(location.lon), timezone: 'auto' };
+  const weather = getJson(WEATHER_ENDPOINT, {
+    ...coordinates,
+    current: 'temperature_2m,relative_humidity_2m,wind_speed_10m'
+  }, signal, 3500).catch(() => null);
+
+  try {
+    const airData = await getJson(AIR_ENDPOINT, {
+      ...coordinates,
+      current: 'pm2_5,pm10,us_aqi',
+      hourly: 'pm2_5,us_aqi',
+      forecast_days: '2',
+      timeformat: 'unixtime'
+    }, signal, 8000);
+    const reading = normalizeReading(location, airData, (await weather)?.current);
     signal?.throwIfAborted();
-
-    const result = {
-      id: location.id || 'custom',
-      name: location.name || 'Selected location',
-      region: location.region || 'Local coordinates',
-      country: location.country,
-      country_code: location.country_code,
-      timezone,
-      lat: location.lat,
-      lon: location.lon,
-      aqi,
-      aqiSystem: 'US AQI',
-      category: getUsAqiCategory(aqi),
-      descriptor: `${getUsAqiCategory(aqi)} • Open-Meteo model estimate`,
-      pm25: concentration(current.pm2_5),
-      pm10: concentration(current.pm10),
-      observedAt: Number.isFinite(current.time) ? current.time * 1000 : null,
-      tempC,
-      humidity,
-      windSpeed: windKph === null ? null : `${(windKph / 3.6).toFixed(1)} m/s`,
-      cleanestWindow: lowerWindow?.label ?? null,
-      cleanestWindowPeakAqi: lowerWindow?.peak ?? null,
-      diurnalHourly,
-      meteorologyNotes: 'Modelled outdoor air quality can differ from street-level conditions.',
-      timestamp: Date.now(),
-      isLive: true,
-      isCached: false,
-      isFallback: false,
-      dataProvider: 'Open-Meteo / CAMS'
-    };
-
-    try {
-      if (typeof localStorage !== 'undefined') localStorage.setItem(cacheKey, JSON.stringify(result));
-    } catch {
-      // Storage can be unavailable in private browsing or when quota is full.
-    }
-    return result;
+    saveAirData(location, reading);
+    return reading;
   } catch {
     signal?.throwIfAborted();
-
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          const savedAt = Number(parsed.timestamp);
-          const cachedAqi = normalizeAqi(parsed.aqi);
-          const hasValidReading = cachedAqi !== null && parsed.aqiSystem === 'US AQI'
-            && Number.isFinite(savedAt) && savedAt > 0 && savedAt <= Date.now();
-          if (hasValidReading) {
-            const ageHours = Math.max(0, (Date.now() - savedAt) / 3600000);
-            return {
-              ...parsed,
-              aqi: cachedAqi,
-              category: getUsAqiCategory(cachedAqi),
-              descriptor: 'Cached Open-Meteo model estimate',
-              cleanestWindow: null,
-              cleanestWindowPeakAqi: null,
-              diurnalHourly: [],
-              isLive: false,
-              isCached: true,
-              isFallback: false,
-              staleHours: Math.max(1, Math.ceil(ageHours))
-            };
-          }
-        }
-      }
-    } catch {
-      // Ignore malformed or unavailable cached data.
-    }
-
-    return {
-      id: location.id || 'custom',
-      name: location.name || 'Selected location',
-      region: location.region || 'Local coordinates',
-      country: location.country,
-      country_code: location.country_code,
-      aqi: null,
-      aqiSystem: 'US AQI',
-      category: 'Unavailable',
-      descriptor: 'Live air-quality data unavailable',
-      pm25: null,
-      pm10: null,
-      tempC: null,
-      humidity: null,
-      windSpeed: null,
-      cleanestWindow: null,
-      diurnalHourly: [],
-      timestamp: null,
-      isLive: false,
-      isCached: false,
-      isFallback: false
-    };
+    return readCachedAirData(location) ?? createEmptyReading(location);
   }
 }

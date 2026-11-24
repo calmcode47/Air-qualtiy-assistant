@@ -4,11 +4,7 @@ import { createGroundStationService } from '../../../server/groundStations.js';
 const NOW = Date.parse('2026-11-22T12:00:00Z');
 
 function response(data, status = 200) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () => JSON.stringify(data)
-  };
+  return Response.json(data, { status });
 }
 
 describe('server/groundStations.js', () => {
@@ -41,13 +37,13 @@ describe('server/groundStations.js', () => {
     expect(result.status).toBe('available');
     expect(result.locationName).toBe('Nearest active');
     expect(result.measurements).toEqual([
-      { parameter: 'PM2.5', value: 48.2, unit: 'µg/m³', observedAt: '2026-11-22T11:00:00Z' }
+      { parameter: 'PM2.5', value: 48.2, unit: 'µg/m³', observedAt: '2026-11-22T11:00:00.000Z' }
     ]);
     expect(result.distanceKm).toBe(1.5);
     expect(JSON.stringify(result)).not.toContain('latitude');
   });
 
-  it('returns no-station when no current reports are nearby', async () => {
+  it('distinguishes a stale nearby station from having no station nearby', async () => {
     const service = createGroundStationService({
       now: () => NOW,
       fetchImpl: async () => response({ records: [
@@ -55,7 +51,8 @@ describe('server/groundStations.js', () => {
         { station: 'Stale station', pollutant: 'PM2.5', avg: 20, latitude: 28.61, longitude: 77.21, updated_at: '2026-11-22T05:00:00Z' }
       ] })
     });
-    await expect(service.getNearestStation(28.61, 77.21)).resolves.toEqual({ status: 'no_station', radiusKm: 25 });
+    await expect(service.getNearestStation(28.61, 77.21)).resolves.toEqual({ status: 'no_recent_measurements', radiusKm: 25 });
+    await expect(service.getNearestStation(27, 77)).resolves.toEqual({ status: 'no_station', radiusKm: 25 });
   });
 
   it('caches a valid feed and serves it as stale after an upstream failure', async () => {
@@ -78,10 +75,33 @@ describe('server/groundStations.js', () => {
     now += 16 * 60 * 1000;
     await expect(service.getNearestStation(28.61, 77.21)).resolves.toMatchObject({ status: 'available', cached: true });
     expect(fetchCount).toBe(2);
+    now += 6 * 60 * 60 * 1000;
+    await expect(service.getNearestStation(28.61, 77.21)).resolves.toMatchObject({ status: 'no_recent_measurements' });
+  });
+
+  it('shares a feed download across concurrent locations', async () => {
+    let fetchCount = 0;
+    const service = createGroundStationService({
+      now: () => NOW,
+      fetchImpl: async () => {
+        fetchCount += 1;
+        return response({ records: [
+          { station: 'Delhi station', pollutant: 'PM2.5', avg: 0, latitude: 28.61, longitude: 77.21, updated_at: '2026-11-22T11:00:00Z' }
+        ] });
+      }
+    });
+
+    const [nearby, distant] = await Promise.all([
+      service.getNearestStation(28.61, 77.21),
+      service.getNearestStation(19.08, 72.88)
+    ]);
+    expect(nearby).toMatchObject({ status: 'available', measurements: [{ value: 0 }] });
+    expect(distant.status).toBe('no_station');
+    expect(fetchCount).toBe(1);
   });
 
   it('rejects oversized, malformed, and non-successful feed responses', async () => {
-    const oversized = createGroundStationService({ fetchImpl: async () => ({ ok: true, text: async () => 'x'.repeat(4 * 1024 * 1024 + 1) }) });
+    const oversized = createGroundStationService({ fetchImpl: async () => new Response('é'.repeat(2 * 1024 * 1024 + 1)) });
     await expect(oversized.getNearestStation(28.61, 77.21)).rejects.toThrow(/size limit/u);
 
     const malformed = createGroundStationService({ fetchImpl: async () => response({ records: 'not-an-array' }) });
