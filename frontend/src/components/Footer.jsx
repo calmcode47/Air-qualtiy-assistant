@@ -1,8 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ShieldAlert, BookOpen } from 'lucide-react';
 
-export default function Footer({ onNavigate, openMaskGuide, openGlossary }) {
+export default function Footer({ openMaskGuide, openGlossary }) {
   const { t } = useTranslation();
 
   return (
@@ -49,11 +50,11 @@ export default function Footer({ onNavigate, openMaskGuide, openGlossary }) {
               Core Assistant Tools
             </span>
             <ul className="space-y-1.5 text-[#A6B8AC]">
-              <li><button onClick={() => onNavigate('advisor')} className="hover:text-white transition">Air Quality Advisor</button></li>
-              <li><button onClick={() => onNavigate('routines')} className="hover:text-white transition">Hourly Forecast &amp; Routines</button></li>
-              <li><button onClick={() => onNavigate('hacks')} className="hover:text-white transition">Indoor Filtration Guide</button></li>
-              <li><button onClick={() => onNavigate('community')} className="hover:text-white transition">Community Action Ideas</button></li>
-              <li><button onClick={() => onNavigate('impact')} className="hover:text-white transition">Household Choices Log</button></li>
+              <li><Link to="/advisor" className="hover:text-white transition">Air Quality Advisor</Link></li>
+              <li><Link to="/routines" className="hover:text-white transition">Hourly Forecast &amp; Routines</Link></li>
+              <li><Link to="/hacks" className="hover:text-white transition">Indoor Filtration Guide</Link></li>
+              <li><Link to="/community" className="hover:text-white transition">Community Action Ideas</Link></li>
+              <li><Link to="/impact" className="hover:text-white transition">Household Choices Log</Link></li>
             </ul>
           </div>
 

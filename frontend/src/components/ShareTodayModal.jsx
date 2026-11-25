@@ -1,23 +1,15 @@
 import React, { useId, useRef, useState, useEffect, useMemo } from 'react';
 import Modal from './Modal';
+import { useAir } from '../context/AirContext';
+import { useProfile } from '../store/profile';
+import { deriveActionPlan } from '../data/householdPersonas';
 import { Share2, Download, X, Copy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { drawShareCard } from '../utils/drawShareCard';
 
-const EMPTY_PLAN = [];
-const DEFAULT_ACTIONS = [
-  'Check local air-quality advice before strenuous outdoor activity',
-  'Reduce indoor particle sources and use suitable mechanical filtration if available',
-  'Combine errands or share trips when practical; avoid idling'
-];
-
-export default function ShareTodayModal({
-  isOpen,
-  onClose,
-  cityData = {},
-  outdoorAqi = null,
-  actionPlan = EMPTY_PLAN
-}) {
+export default function ShareTodayModal({ onClose }) {
+  const { airData: cityData, outdoorAqi } = useAir();
+  const { profile } = useProfile();
   const titleId = useId();
   const { i18n } = useTranslation();
   const canvasRef = useRef(null);
@@ -37,15 +29,12 @@ export default function ShareTodayModal({
     ? cityData.cleanestWindow
     : 'No live lower-pollution forecast available';
 
-  const actions = useMemo(() => {
-    const titles = actionPlan.slice(0, 3).map((action) => action.title || action.instruction || action);
-    return titles.length ? titles : DEFAULT_ACTIONS;
-  }, [actionPlan]);
+  const actions = useMemo(
+    () => deriveActionPlan(profile, cityData).map((action) => action.title),
+    [profile, cityData]
+  );
 
-  // Render canvas card when opened or aspect ratio toggled
   useEffect(() => {
-    if (!isOpen) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -53,9 +42,7 @@ export default function ShareTodayModal({
       cityName, outdoorAqi, category, aqiSystem, readingNote, lowerWindow, actions, aspectRatio,
       language: i18n.resolvedLanguage
     });
-  }, [isOpen, cityName, outdoorAqi, category, aqiSystem, readingNote, lowerWindow, actions, aspectRatio, i18n.resolvedLanguage]);
-
-  if (!isOpen) return null;
+  }, [cityName, outdoorAqi, category, aqiSystem, readingNote, lowerWindow, actions, aspectRatio, i18n.resolvedLanguage]);
 
   const title = `Aura air-quality update for ${cityName}`;
   const filename = `aura-air-status-${cityName.toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, '-')}.png`;
@@ -133,7 +120,7 @@ export default function ShareTodayModal({
         <div className="flex items-center justify-between gap-4 border-b border-[#E6DED6] pb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#18261F] text-[#FAF8F4] flex items-center justify-center font-bold">
-              <Share2 className="w-4 h-4 text-[#8AB394]" />
+              <Share2 aria-hidden="true" className="w-4 h-4 text-[#8AB394]" />
             </div>
             <div>
               <h3 id={titleId} className="text-base font-bold font-serif-natural text-[#18261F]">
@@ -150,7 +137,7 @@ export default function ShareTodayModal({
             data-initial-focus
             aria-label="Close share dialog"
           >
-            <X className="w-5 h-5" />
+            <X aria-hidden="true" className="w-5 h-5" />
           </button>
         </div>
 
@@ -187,7 +174,7 @@ export default function ShareTodayModal({
         {/* Canvas Card Preview */}
         <div className="relative rounded-2xl overflow-hidden border border-[#DFD8CC] shadow-inner bg-[#18261F] flex items-center justify-center">
           <canvas
-            aria-label={title}
+            aria-label={summary}
             role="img"
             ref={canvasRef}
             className="w-full h-auto max-h-[420px] object-contain rounded-2xl block"
@@ -203,7 +190,7 @@ export default function ShareTodayModal({
               disabled={isSharing}
               className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-[#18261F] text-[#FAF8F4] hover:bg-[#2C3E33] transition shadow-xs"
             >
-              <Share2 className="w-3.5 h-3.5 text-[#F3C474]" />
+              <Share2 aria-hidden="true" className="w-3.5 h-3.5 text-[#F3C474]" />
               <span>Share to Apps</span>
             </button>
 
@@ -212,7 +199,7 @@ export default function ShareTodayModal({
               onClick={handleDownload}
               className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-white border border-[#DDD5C7] text-[#18261F] hover:bg-[#FAF7F2] transition shadow-xs"
             >
-              <Download className="w-3.5 h-3.5 text-[#3D6B56]" />
+              <Download aria-hidden="true" className="w-3.5 h-3.5 text-[#3D6B56]" />
               <span>Save Image</span>
             </button>
           </div>

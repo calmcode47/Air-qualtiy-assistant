@@ -1,14 +1,8 @@
-import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Sparkles,
-  Clock,
-  Wrench,
   Users,
-  Shield,
-  Layers,
-  Home,
   MapPin,
   Menu,
   X,
@@ -19,6 +13,8 @@ import {
   BookOpen,
   Share2
 } from 'lucide-react';
+import NavigationLinks from './NavigationLinks';
+import { DEFAULT_LOCATIONS } from '../services/airData';
 import AdvisoryBanner from './AdvisoryBanner';
 import { useAir } from '../context/AirContext';
 import { useProfile } from '../store/profile';
@@ -26,14 +22,13 @@ import useNavbarLocationSearch from './useNavbarLocationSearch';
 
 export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) {
   const { t, i18n } = useTranslation();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
   const {
     airData: cityData, outdoorAqi, error, isOffline, isStale, isCached, staleHours, isLoading,
     selectLocation, searchLocations, requestCurrentLocation
   } = useAir();
   const { isSimpleMode, toggleSimpleMode, updateProfile, setIsOnboardingOpen } = useProfile();
 
+  const menuButton = useRef(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
     searchOpen,
@@ -55,25 +50,6 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
     updateProfile({ preferredLanguage: language });
   }
 
-  const navItems = [
-    { id: 'overview', path: '/', label: t('nav.overview', 'Overview'), icon: Home },
-    { id: 'advisor', path: '/advisor', label: t('nav.advisor', 'Advisor'), icon: Sparkles },
-    { id: 'routines', path: '/routines', label: t('nav.routines', 'Daily Routines'), icon: Clock },
-    { id: 'hacks', path: '/hacks', label: t('nav.hacks', 'DIY Filter & Hacks'), icon: Wrench },
-    { id: 'community', path: '/community', label: t('nav.community', 'Community Shield'), icon: Users },
-    { id: 'impact', path: '/impact', label: t('nav.impact', 'Impact Calculator'), icon: Shield },
-    { id: 'sanctuary', path: '/home', label: t('nav.sanctuary', '3D Sanctuary'), icon: Layers }
-  ];
-
-  function handleNavClick(path) {
-    navigate(path);
-    setMobileMenuOpen(false);
-  }
-
-  function isItemActive(item) {
-    return pathname === item.path;
-  }
-
   return (
     <header className="sticky top-0 z-50 bg-[#FAF8F4]/95 backdrop-blur-md border-b border-[#E7E0D2] shadow-xs">
       <AdvisoryBanner {...{ isOffline, isCached, isStale, staleHours, cityData }} />
@@ -81,8 +57,9 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2">
         {/* Brand & Subtitle */}
-        <button
-          onClick={() => handleNavClick('/')}
+        <Link
+          to="/"
+          onClick={() => setMobileMenuOpen(false)}
           className="min-w-0 flex items-center gap-2 text-left group"
         >
           <div className="w-9 h-9 shrink-0 rounded-2xl bg-[#18261F] text-[#F4F2EC] flex items-center justify-center font-serif text-base font-bold shadow-sm group-hover:scale-105 transition">
@@ -98,7 +75,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
               Urban Air Quality Assistant
             </div>
           </div>
-        </button>
+        </Link>
 
         {/* Right: Location Selector, Search, Geolocation & AQI Status Badge */}
         <div className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 flex items-center flex-wrap justify-start gap-1.5 sm:gap-2">
@@ -137,13 +114,12 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
               aria-label="Select City"
               value={cityData.id}
               onChange={(e) => selectLocation(e.target.value)}
-              className="text-xs font-bold font-mono-code bg-transparent text-[#18261F] cursor-pointer focus:outline-none max-w-[85px] sm:max-w-[110px] truncate"
+              className="text-xs font-bold font-mono-code bg-transparent text-[#18261F] cursor-pointer focus-visible:outline-offset-2 max-w-[85px] sm:max-w-[110px] truncate"
             >
-              <option value="delhi">Delhi NCR</option>
-              <option value="lahore">Lahore</option>
-              <option value="saltlake">Salt Lake</option>
-              <option value="beijing">Beijing</option>
-              {cityData?.id && !['delhi', 'lahore', 'saltlake', 'beijing'].includes(cityData.id) && (
+              {Object.values(DEFAULT_LOCATIONS).map((location) => (
+                <option key={location.id} value={location.id}>{location.name}</option>
+              ))}
+              {cityData.id && !Object.hasOwn(DEFAULT_LOCATIONS, cityData.id) && (
                 <option value={cityData.id}>{cityData.name}</option>
               )}
             </select>
@@ -162,7 +138,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
             <select
               value={currentLang}
               onChange={(e) => handleLanguageChange(e.target.value)}
-              className="text-xs font-semibold bg-transparent text-[#18261F] cursor-pointer focus:outline-none"
+              className="text-xs font-semibold bg-transparent text-[#18261F] cursor-pointer focus-visible:outline-offset-2"
               aria-label="Select Language"
             >
               <option value="en">English</option>
@@ -182,6 +158,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
             }`}
             title="Toggle Simple / Technical Language"
             aria-label="Toggle Simple Language Mode"
+            aria-pressed={isSimpleMode}
           >
             <span className="text-[10px] font-mono uppercase font-bold">
               {isSimpleMode ? 'Simple' : 'Technical'}
@@ -246,6 +223,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
 
         <button
           type="button"
+          ref={menuButton}
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="col-start-2 row-start-1 sm:col-start-3 xl:hidden w-9 h-9 rounded-xl bg-[#FAF7F2] border border-[#DDD5C7] flex items-center justify-center text-[#18261F]"
           aria-label="Toggle Navigation Menu"
@@ -257,25 +235,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
 
         {/* Desktop Page Navigation Links */}
         <nav aria-label="Main navigation" className="hidden xl:flex col-span-3 flex-wrap items-center gap-1 bg-[#EFECE3] p-1 rounded-2xl border border-[#DFD8CC]">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isItemActive(item);
-            return (
-              <button
-                key={item.id}
-                aria-current={isActive ? 'page' : undefined}
-                onClick={() => handleNavClick(item.path)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-                  isActive
-                    ? 'bg-[#18261F] text-[#F4F2EC] shadow-sm'
-                    : 'text-[#56685F] hover:text-[#18261F] hover:bg-white/60'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#688A72]' : ''}`} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          <NavigationLinks />
         </nav>
 
       </div>
@@ -299,7 +259,7 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
                   }
                 }}
                 placeholder="Search any global city or locality (e.g. Chandigarh, Denver, Karachi)..."
-                className="w-full text-xs text-[#18261F] placeholder:text-[#A6BCB0] bg-transparent focus:outline-none font-medium"
+                className="w-full text-xs text-[#18261F] placeholder:text-[#56685F] bg-transparent focus-visible:outline-offset-2 font-medium"
               />
               {searchQuery && (
                 <button
@@ -358,7 +318,14 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <nav id="aura-mobile-menu" aria-label="Main navigation" className="xl:hidden max-h-[60dvh] overflow-y-auto border-t border-[#E7E0D2] bg-[#FAF8F4] px-4 pt-3 pb-5 space-y-2 animate-in slide-in-from-top-2 duration-200">
+        <nav id="aura-mobile-menu"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setMobileMenuOpen(false);
+              menuButton.current?.focus();
+            }
+          }}
+          aria-label="Main navigation" className="xl:hidden max-h-[60dvh] overflow-y-auto border-t border-[#E7E0D2] bg-[#FAF8F4] px-4 pt-3 pb-5 space-y-2 animate-in slide-in-from-top-2 duration-200">
           <div className="grid grid-cols-2 gap-2 pb-3 border-b border-[#E7E0D2]">
             <div className="bg-[#FAF0EC] p-2.5 rounded-xl border border-[#F2D1C5]">
               <span className="text-[10px] font-mono-code uppercase font-bold text-[#56685F] block">{cityData.aqiSystem || 'US AQI'}</span>
@@ -386,25 +353,25 @@ export default function Navbar({ openMaskGuide, openGlossary, openShareToday }) 
               </span>
               <span className="text-[10px] text-[#56685F] font-mono-code">Personalize</span>
             </button>
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = isItemActive(item);
-              return (
-                <button
-                  key={item.id}
-                  aria-current={isActive ? 'page' : undefined}
-                  onClick={() => handleNavClick(item.path)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-semibold transition ${
-                    isActive
-                      ? 'bg-[#18261F] text-[#F4F2EC]'
-                      : 'text-[#56685F] hover:bg-[#EAE4D8] hover:text-[#18261F]'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+            <button
+              type="button"
+              aria-pressed={isSimpleMode}
+              onClick={toggleSimpleMode}
+              className="md:hidden w-full rounded-xl border border-[#DDD5C7] px-4 py-2 text-left text-xs font-semibold"
+            >
+              Simple language mode
+            </button>
+            {openShareToday && (
+              <button
+                type="button"
+                onClick={openShareToday}
+                aria-label="Share Today's Air Status Card"
+                className="sm:hidden w-full flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold"
+              >
+                <Share2 aria-hidden="true" className="h-4 w-4" /> Share
+              </button>
+            )}
+            <NavigationLinks mobile onNavigate={() => setMobileMenuOpen(false)} />
 
             {/* Mobile Mask Guide and Glossary Links */}
             <div className="pt-2 border-t border-[#E7E0D2] flex gap-2">

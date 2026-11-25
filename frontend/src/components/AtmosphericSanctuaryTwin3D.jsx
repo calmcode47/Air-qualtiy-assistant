@@ -4,9 +4,14 @@ import useSanctuaryScene from './useSanctuaryScene';
 import './AtmosphericSanctuaryTwin3D.css';
 import AtmosphericFallbackSVG from './AtmosphericFallbackSVG';
 
-/**
- * Check if WebGL context is available in browser
- */
+const SCENARIOS = [
+  [25, 'GOOD'],
+  [75, 'MODERATE'],
+  [125, 'SENSITIVE'],
+  [175, 'UNHEALTHY'],
+  [250, 'VERY UNHEALTHY'],
+  [350, 'HAZARDOUS']
+];
 export function isWebGLAvailable() {
   try {
     if (typeof window === 'undefined') return false;
@@ -40,10 +45,6 @@ export default function AtmosphericSanctuaryTwin3D({
     fallbackReason, setFallbackReason, aqi, fanSpeed, isNightMode, isSimpleMode
   });
 
-  function handleAqiChange(value) {
-    setScenarioAqi(Number(value));
-  }
-
   function handlePurifierToggle(checked) {
     setFanSpeed(checked ? 'high' : 'off');
   }
@@ -55,7 +56,7 @@ export default function AtmosphericSanctuaryTwin3D({
     return (
       <div className={`winter-smog-model-container w-full text-[#14161b] ${height === '100%' ? 'fill-height h-full' : ''}`}>
         <AtmosphericFallbackSVG
-          aqi={aqi}
+          aqi={outdoorAqi}
           purifierOn={purifierOn}
           cityData={cityData}
           isSimpleMode={isSimpleMode}
@@ -182,58 +183,27 @@ export default function AtmosphericSanctuaryTwin3D({
             <div>
               <input
                 type="range"
-                min="20"
+                min="0"
                 max="500"
                 value={aqi}
                 aria-label="Illustrative AQI scenario value"
-                onChange={(e) => handleAqiChange(e.target.value)}
+                onChange={(event) => setScenarioAqi(event.target.valueAsNumber)}
               />
             </div>
 
             {/* Quick Band Buttons */}
             <div className="winter-smog-chips">
-              <button
-                type="button"
-                className={aqi === 25 ? 'active-chip' : ''}
-                onClick={() => handleAqiChange(25)}
-              >
-                GOOD
-              </button>
-              <button
-                type="button"
-                className={aqi === 75 ? 'active-chip' : ''}
-                onClick={() => handleAqiChange(75)}
-              >
-                MODERATE
-              </button>
-              <button
-                type="button"
-                className={aqi === 125 ? 'active-chip' : ''}
-                onClick={() => handleAqiChange(125)}
-              >
-                SENSITIVE
-              </button>
-              <button
-                type="button"
-                className={aqi === 175 ? 'active-chip' : ''}
-                onClick={() => handleAqiChange(175)}
-              >
-                UNHEALTHY
-              </button>
-              <button
-                type="button"
-                className={aqi === 250 ? 'active-chip' : ''}
-                onClick={() => handleAqiChange(250)}
-              >
-                VERY UNHEALTHY
-              </button>
-              <button
-                type="button"
-                className={aqi === 350 ? 'active-chip' : ''}
-                onClick={() => handleAqiChange(350)}
-              >
-                HAZARDOUS
-              </button>
+              {SCENARIOS.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={aqi === value}
+                  className={aqi === value ? 'active-chip' : ''}
+                  onClick={() => setScenarioAqi(value)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             {/* Air Purifier Toggle */}

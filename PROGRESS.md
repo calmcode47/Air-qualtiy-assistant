@@ -8,7 +8,7 @@
 - Do not infer indoor concentrations, personal doses, health outcomes, emissions savings, cleaner CADR, or mixing height from a fan setting or AQI.
 - Keep medical red flags and personal care plans grounded in public-health guidance; the advisor is educational and must not diagnose or change treatment.
 - Use local deterministic advice and public feeds that require no API keys.
-- Store user preferences locally. Send only the selected profile context needed for a user-initiated advisor request, with coordinates rounded by the backend.
+- Store user preferences locally. Send only the selected profile context needed for a user-initiated advisor request, without location coordinates.
 
 The app's data limitations and cited source material are documented in README.md.
 
@@ -40,7 +40,7 @@ Install from the lockfiles with `npm ci`, `npm --prefix frontend ci`, and `npm -
 ## Verification and limits
 
 - The suite covers forecast changes, cache fallback, household edits, share files, keyboard focus, language selection, API limits, multilingual urgent phrases, direct shared-advice and station-service rules, and the advice fallback. Vitest coverage thresholds run in CI. See [README.md](README.md) for the commands.
-- Direct route loading and offline reload were checked against the local production build. The current local advisor does not call a hosted language model.
+- Direct route loading and offline reload were checked against the local production build. Browser tests use the keyless advisor. Server tests exercise optional Gemini mode with a test provider.
 - Browser runs use Chromium at two viewport widths. Physical-device audio, native share sheets, screen-reader behavior, and native-speaker review of the new Hindi and Punjabi text remain unverified.
 - The Three.js scene is split into smaller chunks. The app shell excludes them from PWA precaching and the service worker caches them after a Sanctuary visit.
 

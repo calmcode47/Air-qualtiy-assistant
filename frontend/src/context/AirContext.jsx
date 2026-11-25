@@ -14,23 +14,31 @@ const LOCATION_STORAGE_KEY = 'aura_selected_location';
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const CACHE_AGE_INTERVAL_MS = 60 * 1000;
 
-function roundCoordinate(value) {
-  return Number(value.toFixed(2));
+function browserLocation(latitude, longitude) {
+  const lat = Number(latitude.toFixed(2));
+  const lon = Number(longitude.toFixed(2));
+  return { id: `loc_${lat}_${lon}`, name: 'My Current Location', region: 'Approximate browser location', lat, lon };
 }
 
 function readSavedLocation() {
   try {
     const location = JSON.parse(localStorage.getItem(LOCATION_STORAGE_KEY));
-    if (typeof location?.id === 'string' && hasValidCoordinates(location.lat, location.lon)) {
-      if (!location.id.startsWith('loc_')) return location;
-      const lat = roundCoordinate(location.lat);
-      const lon = roundCoordinate(location.lon);
-      return { ...location, id: `loc_${lat}_${lon}`, lat, lon };
-    }
+    if (location && Object.hasOwn(DEFAULT_LOCATIONS, location.id)) return DEFAULT_LOCATIONS[location.id];
+    if (typeof location?.id !== 'string' || !hasValidCoordinates(location.lat, location.lon)) return DEFAULT_LOCATIONS.delhi;
+    if (location.id.startsWith('loc_')) return browserLocation(location.lat, location.lon);
+    if (typeof location.name !== 'string' || !location.name.trim()) return DEFAULT_LOCATIONS.delhi;
+    return {
+      id: location.id,
+      name: location.name.trim(),
+      region: typeof location.region === 'string' ? location.region : '',
+      country: typeof location.country === 'string' ? location.country : undefined,
+      country_code: typeof location.country_code === 'string' ? location.country_code : undefined,
+      lat: location.lat,
+      lon: location.lon
+    };
   } catch {
-    // Ignore malformed preferences or blocked browser storage.
+    return DEFAULT_LOCATIONS.delhi;
   }
-  return DEFAULT_LOCATIONS.delhi;
 }
 
 export function AirProvider({ children }) {
@@ -157,9 +165,7 @@ export function AirProvider({ children }) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         if (attempt !== locationAttempt.current) return;
-        const lat = roundCoordinate(position.coords.latitude);
-        const lon = roundCoordinate(position.coords.longitude);
-        selectLocation({ id: `loc_${lat}_${lon}`, name: 'My Current Location', region: 'Approximate browser location', lat, lon });
+        selectLocation(browserLocation(position.coords.latitude, position.coords.longitude));
       },
       () => {
         if (attempt === locationAttempt.current) {

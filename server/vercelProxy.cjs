@@ -31,6 +31,12 @@ async function readRequestBody(request) {
   return Buffer.concat(chunks);
 }
 
+function sendError(response, status, message) {
+  response.statusCode = status;
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  return response.end(JSON.stringify({ error: message }));
+}
+
 function createProxyHandler({
   fetchImpl = fetch,
   apiOrigin = process.env.AURA_RENDER_API_URL || DEFAULT_RENDER_API_URL,
@@ -38,22 +44,19 @@ function createProxyHandler({
   timeoutMs = 34_000
 } = {}) {
   return async function proxyApiRequest(request, response) {
+    response.setHeader('Cache-Control', 'no-store');
     if (typeof edgeToken !== 'string' || edgeToken.length < 32) {
-      response.statusCode = 503;
-      response.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return response.end(JSON.stringify({ error: 'API proxy is not configured.' }));
+      return sendError(response, 503, 'API proxy is not configured.');
     }
 
     const incomingUrl = new URL(request.url || '/', 'https://vercel.invalid');
     const path = resolveApiPath(request, incomingUrl);
     if (!ALLOWED_API_PATHS.has(path)) {
-      response.statusCode = 404;
-      return response.end(JSON.stringify({ error: 'API route not found.' }));
+      return sendError(response, 404, 'API route not found.');
     }
     if (!['GET', 'POST'].includes(request.method)) {
       response.setHeader('Allow', 'GET, POST');
-      response.statusCode = 405;
-      return response.end(JSON.stringify({ error: 'Method not allowed.' }));
+      return sendError(response, 405, 'Method not allowed.');
     }
 
     const target = new URL(`/api/${path}`, apiOrigin);
@@ -67,37 +70,26 @@ function createProxyHandler({
       if (typeof value === 'string') headers.set(header, value);
     }
 
-    let body;
-    if (request.method === 'POST') {
-      body = await readRequestBody(request);
-      if (body === null) {
-        response.statusCode = 413;
-        return response.end(JSON.stringify({ error: 'Request body exceeds the 20 kB limit.' }));
-      }
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
+      const body = request.method === 'POST' ? await readRequestBody(request) : undefined;
+      if (body === null) return sendError(response, 413, 'Request body exceeds the 20 kB limit.');
       const upstream = await fetchImpl(target, {
         method: request.method,
         headers,
         ...(body ? { body } : {}),
-        signal: controller.signal
+        redirect: 'error',
+        signal: AbortSignal.timeout(timeoutMs)
       });
-      upstream.headers.forEach((value, key) => {
-        if (!['connection', 'content-length', 'transfer-encoding'].includes(key.toLowerCase())) {
-          response.setHeader(key, value);
-        }
-      });
+      const payload = Buffer.from(await upstream.arrayBuffer());
+      // Fetch decodes compressed bodies. Forward just the API metadata that still applies.
+      for (const name of ['content-type', 'retry-after', 'x-request-id', 'x-aura-advice-mode']) {
+        const value = upstream.headers.get(name);
+        if (value !== null) response.setHeader(name, value);
+      }
       response.statusCode = upstream.status;
-      return response.end(Buffer.from(await upstream.arrayBuffer()));
+      return response.end(payload);
     } catch {
-      response.statusCode = 502;
-      response.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return response.end(JSON.stringify({ error: 'The API is temporarily unavailable.' }));
-    } finally {
-      clearTimeout(timeout);
+      return sendError(response, 502, 'The API is temporarily unavailable.');
     }
   };
 }

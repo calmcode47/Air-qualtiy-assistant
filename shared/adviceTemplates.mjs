@@ -21,7 +21,8 @@ export const ADVICE_TEMPLATES = {
       lowerWindow: ' The comparatively lower period is {{window}}, with a forecast peak US AQI of {{peak}} ({{category}}). Recheck local guidance before leaving. {{guidance}}',
       knownConditionFollowUp: 'For a known heart or lung condition, follow your clinician-provided action plan.',
       generalFollowUp: 'Would you like suggestions focused on commuting, cooking, or setting up a cleaner-air room?',
-      groundMonitor: 'Nearby CPCB station {{name}}{{distance}} reported {{values}} at {{time}} UTC. This is a station measurement, not a reading at your location.',
+      stationDistance: ', {{km}} km away',
+      groundMonitor: 'Nearby CPCB station {{name}}{{distance}} reported {{values}}. This is a station measurement, not a reading at your location.',
       urgentAssumption: 'This is general safety guidance, not a diagnosis.'
     },
     recommendations: {
@@ -97,7 +98,8 @@ export const ADVICE_TEMPLATES = {
       lowerWindow: ' तुलनात्मक रूप से कम प्रदूषण का समय {{window}} है; उस अवधि का अनुमानित अधिकतम US AQI {{peak}} ({{category}}) है। निकलने से पहले स्थानीय सलाह फिर देखें। {{guidance}}',
       knownConditionFollowUp: 'यदि हृदय या फेफड़ों की कोई ज्ञात समस्या है, तो डॉक्टर की दी हुई कार्ययोजना का पालन करें।',
       generalFollowUp: 'क्या आप यात्रा, खाना पकाने या घर में एक साफ़ हवा वाला कमरा बनाने के बारे में सुझाव चाहते हैं?',
-      groundMonitor: 'नज़दीकी CPCB स्टेशन {{name}}{{distance}} ने {{time}} UTC पर {{values}} की रिपोर्ट दी। यह स्टेशन की माप है, आपके स्थान की रीडिंग नहीं।',
+      stationDistance: ', {{km}} किमी दूर',
+      groundMonitor: 'नज़दीकी CPCB स्टेशन {{name}}{{distance}} ने {{values}} की रिपोर्ट दी। यह स्टेशन की माप है, आपके स्थान की रीडिंग नहीं।',
       urgentAssumption: 'यह सामान्य सुरक्षा सलाह है, निदान नहीं।'
     },
     recommendations: {
@@ -173,7 +175,8 @@ export const ADVICE_TEMPLATES = {
       lowerWindow: ' ਤੁਲਨਾਤਮਕ ਤੌਰ ’ਤੇ ਘੱਟ ਪ੍ਰਦੂਸ਼ਣ ਵਾਲਾ ਸਮਾਂ {{window}} ਹੈ; ਉਸ ਸਮੇਂ ਦਾ ਅੰਦਾਜ਼ਿਤ ਵੱਧ ਤੋਂ ਵੱਧ US AQI {{peak}} ({{category}}) ਹੈ। ਨਿਕਲਣ ਤੋਂ ਪਹਿਲਾਂ ਸਥਾਨਕ ਸਲਾਹ ਮੁੜ ਵੇਖੋ। {{guidance}}',
       knownConditionFollowUp: 'ਜੇ ਦਿਲ ਜਾਂ ਫੇਫੜਿਆਂ ਦੀ ਕੋਈ ਜਾਣੀ ਸਮੱਸਿਆ ਹੈ, ਤਾਂ ਡਾਕਟਰ ਵੱਲੋਂ ਦਿੱਤੀ ਕਾਰਜ-ਯੋਜਨਾ ਦੀ ਪਾਲਣਾ ਕਰੋ।',
       generalFollowUp: 'ਕੀ ਤੁਸੀਂ ਆਉਣ-ਜਾਣ, ਖਾਣਾ ਪਕਾਉਣ ਜਾਂ ਘਰ ਵਿੱਚ ਸਾਫ਼ ਹਵਾ ਵਾਲਾ ਕਮਰਾ ਬਣਾਉਣ ਬਾਰੇ ਸੁਝਾਅ ਚਾਹੁੰਦੇ ਹੋ?',
-      groundMonitor: 'ਨੇੜਲੇ CPCB ਸਟੇਸ਼ਨ {{name}}{{distance}} ਨੇ {{time}} UTC ’ਤੇ {{values}} ਦੀ ਰਿਪੋਰਟ ਦਿੱਤੀ। ਇਹ ਸਟੇਸ਼ਨ ਦੀ ਮਾਪ ਹੈ, ਤੁਹਾਡੇ ਸਥਾਨ ਦੀ ਰੀਡਿੰਗ ਨਹੀਂ।',
+      stationDistance: ', {{km}} ਕਿਮੀ ਦੂਰ',
+      groundMonitor: 'ਨੇੜਲੇ CPCB ਸਟੇਸ਼ਨ {{name}}{{distance}} ਨੇ {{values}} ਦੀ ਰਿਪੋਰਟ ਦਿੱਤੀ। ਇਹ ਸਟੇਸ਼ਨ ਦੀ ਮਾਪ ਹੈ, ਤੁਹਾਡੇ ਸਥਾਨ ਦੀ ਰੀਡਿੰਗ ਨਹੀਂ।',
       urgentAssumption: 'ਇਹ ਆਮ ਸੁਰੱਖਿਆ ਸਲਾਹ ਹੈ, ਨਿਦਾਨ ਨਹੀਂ।'
     },
     recommendations: {

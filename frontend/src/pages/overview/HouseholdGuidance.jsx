@@ -1,10 +1,11 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Compass, Sliders } from 'lucide-react';
 import { HOUSEHOLD_PERSONAS, deriveVulnerabilities } from '../../data/householdPersonas';
 import { findMatchingPreset, useProfile } from '../../store/profile';
 
-export default function HouseholdGuidance({ onEditProfile, onNavigate }) {
+export default function HouseholdGuidance({ onEditProfile }) {
   const { t } = useTranslation();
   const { profile, applyPreset } = useProfile();
   const selectedPersonaId = findMatchingPreset(profile);
@@ -101,13 +102,13 @@ export default function HouseholdGuidance({ onEditProfile, onNavigate }) {
             <Sliders className="w-3.5 h-3.5 text-[#3D6B56]" />
             <span>Fine-Tune</span>
           </button>
-          <button
-            onClick={() => onNavigate('advisor')}
+          <Link
+            to="/advisor"
             className="bg-[#18261F] text-[#FAF8F4] px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#2C3E33] transition flex items-center gap-2"
           >
             <span>Ask Advisor</span>
             <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          </Link>
         </div>
       </div>
     </section>

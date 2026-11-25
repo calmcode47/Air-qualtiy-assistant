@@ -69,10 +69,12 @@ export default function GroundStationCard({ station }) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-semibold text-sm text-[#18261F]">{station.locationName}</p>
-                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#56685F]">
-                    <MapPin className="h-3 w-3" aria-hidden="true" />
-                    {t('ground_station.distance', { distance: station.distanceKm })}
-                  </p>
+                  {station.distanceKm != null && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#56685F]">
+                      <MapPin className="h-3 w-3" aria-hidden="true" />
+                      {t('ground_station.distance', { distance: station.distanceKm })}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1 text-right">
                   <a

@@ -1,11 +1,11 @@
 import React, { lazy } from 'react';
 import AtmosphericFallbackSVG from './AtmosphericFallbackSVG';
 
-function DiagramWhenSceneUnavailable({ cityData, outdoorAqi, fanSpeed }) {
+function DiagramWhenSceneUnavailable({ cityData, outdoorAqi, fanSpeed, isSimpleMode }) {
   return (
     <>
       <p role="status" className="p-3 bg-[#FAF7F2] text-xs text-[#53645C]">The interactive scene could not load. The air-quality diagram is available below.</p>
-      <AtmosphericFallbackSVG cityData={cityData} aqi={outdoorAqi} purifierOn={fanSpeed !== 'off'} />
+      <AtmosphericFallbackSVG cityData={cityData} aqi={outdoorAqi} isSimpleMode={isSimpleMode} purifierOn={fanSpeed !== 'off'} />
     </>
   );
 }

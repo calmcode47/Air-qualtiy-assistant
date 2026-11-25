@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
+import { createServer } from 'node:http';
+import { gzipSync } from 'node:zlib';
 import proxyModule from './vercelProxy.cjs';
 
 const { createProxyHandler } = proxyModule;
@@ -46,7 +48,7 @@ test('Vercel API proxy adds the edge secret and forwards Vercel client IP', asyn
   assert.equal(forwarded.url, 'https://aura-air-quality-api.onrender.com/api/health?check=1');
   assert.equal(forwarded.options.headers.get('x-aura-edge-token'), 't'.repeat(40));
   assert.equal(forwarded.options.headers.get('x-forwarded-for'), '198.51.100.22');
-  assert.equal(forwarded.options.headers.has('x-aura-edge-token') && forwarded.options.headers.get('x-aura-edge-token') !== 'attacker-controlled', true);
+  assert.equal(forwarded.options.redirect, 'error');
   assert.equal(response.headers['x-request-id'], 'test-id');
   assert.equal(String(response.body), JSON.stringify({ status: 'ok' }));
 });
@@ -86,4 +88,26 @@ test('Vercel API proxy resolves the rewritten route from the request URL', async
 
   assert.equal(response.statusCode, 200);
   assert.equal(forwardedUrl, 'https://aura-air-quality-api.onrender.com/api/monitor?lat=0&lon=0');
+});
+
+test('serves decoded upstream JSON with its retry metadata', async (t) => {
+  const json = JSON.stringify({ error: 'Try again shortly.' });
+  const upstream = createServer((_req, res) => {
+    res.writeHead(429, { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip', 'Retry-After': '60' });
+    res.end(gzipSync(json));
+  });
+  await new Promise((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => upstream.close(resolve)));
+  const handler = createProxyHandler({
+    edgeToken: 't'.repeat(40),
+    apiOrigin: `http://127.0.0.1:${upstream.address().port}`
+  });
+  const request = Object.assign(Readable.from([]), { method: 'GET', url: '/api/health' });
+  const response = mockResponse();
+  await handler(request, response);
+  assert.equal(response.statusCode, 429);
+  assert.equal(response.headers['retry-after'], '60');
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.equal(response.headers['content-encoding'], undefined);
+  assert.equal(String(response.body), json);
 });

@@ -267,7 +267,7 @@ export default function AtmosphericFallbackSVG({
       {/* Footer Info Row */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#232A38] text-[11px] font-mono-code text-[#A6BCB0]">
         <div>
-          Outdoor US AQI · <strong className="text-[#F3C474]">{currentAqi}</strong> • Illustrative diagram
+          {cityData.isCached ? 'Cached outdoor US AQI' : 'Outdoor US AQI'} · <strong className="text-[#F3C474]">{currentAqi}</strong> • Illustrative diagram
         </div>
         <div className="text-[10px] text-[#A6BCB0]">
           Static physics diagram • Accessible 2D alternative

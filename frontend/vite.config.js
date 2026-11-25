@@ -102,10 +102,12 @@ export default defineConfig({
       include: [
         'src/services/airData.js',
         'src/services/advisor.js',
+        'src/services/groundStation.js',
         resolve(projectRoot, 'shared/advice.mjs'),
         resolve(projectRoot, 'shared/adviceTemplates.mjs'),
         resolve(projectRoot, 'shared/aqi.mjs'),
         resolve(projectRoot, 'shared/groundMonitor.mjs'),
+        resolve(projectRoot, 'shared/stationObservation.mjs'),
         resolve(projectRoot, 'server/groundStations.js')
       ],
       thresholds: {

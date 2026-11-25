@@ -1,10 +1,11 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Leaf } from 'lucide-react';
 import HowWeWorkedThisOut from '../../components/HowWeWorkedThisOut';
 import { getTailoredSwaps } from '../../data/swaps';
 import { useProfile } from '../../store/profile';
 
-export default function GreenerSwaps({ onNavigate }) {
+export default function GreenerSwaps() {
   const { profile } = useProfile();
   const tailoredSwaps = getTailoredSwaps(profile);
 
@@ -22,14 +23,13 @@ export default function GreenerSwaps({ onNavigate }) {
             Everyday exposure-reduction choices tailored to your commute, cooking fuel, and household budget
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onNavigate('impact')}
+        <Link
+          to="/impact"
           className="px-4 py-2 text-xs font-semibold rounded-xl bg-[#3D6B56] text-white hover:bg-[#2F5443] transition flex items-center gap-1.5 self-start sm:self-auto shrink-0 shadow-sm"
         >
           <span>Open Choices Ledger</span>
           <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        </Link>
       </div>
 
       {/* Tailored Swaps Grid */}

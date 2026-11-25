@@ -14,7 +14,7 @@ test.describe('Aura Behavior Verification Suite', () => {
     await page.goto('/');
     const summary = page.getByTestId('hero-status-summary');
     await expect(summary).toContainText('Unhealthy for Delhi');
-    await page.getByRole('button', { name: 'View Schedule' }).click();
+    await page.getByRole('link', { name: 'View Schedule' }).click();
     const forecast = page.getByRole('group', { name: 'Hourly US AQI forecast' });
     await expect(forecast.getByRole('button', { name: /US AQI 124/ })).toBeVisible();
 
@@ -112,6 +112,44 @@ test.describe('Aura Behavior Verification Suite', () => {
     await expect(dialog.getByRole('status')).toHaveText(/clipboard access is unavailable/i);
   });
 
+  test('shares the same household plan from the overview and global navigation', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: async (text) => { window.copiedSummary = text; } }
+      });
+    });
+    await page.goto('/');
+    await expect(page.getByTestId('hero-status-summary')).toContainText('Unhealthy for Delhi');
+    const actions = await page.getByTestId(/^action-step-title-/).allTextContents();
+    expect(actions).toHaveLength(3);
+    await page.getByRole('button', { name: 'Share Status', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Copy text summary' }).click();
+    const overview = await page.evaluate(() => window.copiedSummary);
+    for (const action of actions) expect(overview).toContain(action);
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('link', { name: 'View Schedule' }).click();
+    const share = page.getByRole('button', { name: "Share Today's Air Status Card" });
+    if (!await share.isVisible()) await page.getByRole('button', { name: 'Toggle Navigation Menu' }).click();
+    await share.click();
+    await expect(dialog.getByRole('img')).toHaveAccessibleName(overview.replace(/\s+/g, ' '));
+    await dialog.getByRole('button', { name: 'Copy text summary' }).click();
+    await expect(dialog.getByRole('status')).toHaveText('Summary copied to clipboard.');
+    expect(await page.evaluate(() => window.copiedSummary)).toBe(overview);
+  });
+
+  test('recovers from an unreadable saved city name', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('aura_selected_location', JSON.stringify({
+        id: 'geo_1', name: {}, lat: 19, lon: 73
+      }));
+    });
+    await page.goto('/');
+    await expect(page.getByTestId('hero-status-summary')).toContainText('Unhealthy for Delhi');
+    await expect(page.getByTestId('location-select')).toHaveValue('delhi');
+  });
+
   test('applies the language selected in the household editor', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Customize Household' }).click();
@@ -157,13 +195,17 @@ test.describe('Aura Behavior Verification Suite', () => {
       };
     });
 
+    await page.route('https://air-quality-api.open-meteo.com/**', (route) => route.abort());
     await page.goto('/home');
-    await expect(page.locator('#main-content')).toBeVisible();
+    const diagram = page.getByRole('region', { name: 'Illustrative air-pollution and home-filter diagram' });
+    await expect(diagram.getByText('2D Fallback Mode (WebGL Unavailable)')).toBeVisible();
+    await expect(diagram).toContainText('Outdoor US AQI · Unavailable');
 
-    // Assert that the 2D SVG fallback diagram is rendered
-    const fallbackDiagram = page.locator('[aria-label="Illustrative air-pollution and home-filter diagram"]');
-    await expect(fallbackDiagram).toBeVisible();
-    await expect(page.locator('text=2D Fallback Mode (WebGL Unavailable)')).toBeVisible();
+    await page.route('https://air-quality-api.open-meteo.com/**', (route) => route.fulfill({
+      json: { current: { us_aqi: 512 } }
+    }));
+    await page.getByTestId('location-select').selectOption('lahore');
+    await expect(diagram).toContainText('Outdoor US AQI · 512');
   });
 
   test('logs a swap in Impact ledger, updates totals, and survives reload', async ({ page }) => {
@@ -219,8 +261,11 @@ test.describe('Aura Behavior Verification Suite', () => {
       await toggle.click();
       const navigation = page.getByRole('navigation', { name: 'Main navigation' });
       await expect(navigation).toBeVisible();
-      await expect(navigation.getByRole('button', { name: /advisor/i })).toBeVisible();
-      await toggle.click();
+      const advisor = navigation.getByRole('link', { name: /advisor/i });
+      await expect(advisor).toHaveAttribute('href', '/advisor');
+      await advisor.focus();
+      await page.keyboard.press('Escape');
+      await expect(toggle).toBeFocused();
       await expect(toggle).toHaveAttribute('aria-expanded', 'false');
       expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(width + 2);
     }

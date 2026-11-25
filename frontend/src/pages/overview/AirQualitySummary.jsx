@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Sun } from 'lucide-react';
 import { useAir } from '../../context/AirContext';
@@ -20,7 +21,7 @@ function formatReadingTime(value, timeZone, language) {
   }
 }
 
-export default function AirQualitySummary({ onNavigate }) {
+export default function AirQualitySummary() {
   const { airData: cityData, outdoorAqi, isLoading, isStale, staleHours } = useAir();
   const { profile, isSimpleMode, calibrateIndoor, resetCalibration } = useProfile();
   const { t, i18n } = useTranslation();
@@ -116,13 +117,13 @@ export default function AirQualitySummary({ onNavigate }) {
               </div>
             </div>
 
-            <button
-              onClick={() => onNavigate('routines')}
+            <Link
+              to="/routines"
               className="bg-[#18261F] text-[#FAF8F4] px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-[#2C3E33] transition flex items-center gap-1.5 shrink-0"
             >
               <span>View Schedule</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            </Link>
           </div>
         </div>
 

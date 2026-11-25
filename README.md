@@ -61,7 +61,7 @@ Vercel sends `/api/*` requests through a serverless proxy that forwards Vercel's
 | Household and question | Household size, sensitivity, commute, room setup, equipment, and budget guide the next actions. The local rule-based advisor prioritizes the current question or its recent context. For example, a household without a filter gets source-control steps for an indoor question. |
 | Nearby station observations | For locations in India, the closest CPCB station within 25 km can show raw PM2.5 and PM10 values with observation times. These measurements are not an AQI or a reading at the selected location. |
 | Freshness | Live model readings show the provider reading time. Cached values show their saved time and age; CPCB observations show the station-reported time. |
-| Sharing | The share dialog offers a plain-text summary that can be copied or shared through the device’s available apps, as well as a share-card image. |
+| Sharing | The overview and navigation share the same household action plan, AQI, and forecast period. The dialog provides a copyable text summary and a downloadable image. |
 | Poor air quality in the community | The community page prioritizes checking in on neighbors based on current AQI and household sensitivity, and can open a prefilled advisor prompt for planning next steps. |
 | Data service unavailable | A saved US AQI estimate is labeled with its age and its hourly forecast is hidden. With no usable cache, the interface shows an unavailable reading. Advice continues with local rules during a feed outage. |
 | Recognized emergency symptoms | Local rules immediately surface emergency guidance in English, Hindi, or Punjabi. No external model is called. |
